@@ -85,13 +85,13 @@ function Assert-Signature {
 
     $signature = Get-AuthenticodeSignature -LiteralPath $Path
     if ($RequireSigned -and $signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
-        throw "Authenticode verification failed for $Path: $($signature.Status)."
+        throw "Authenticode verification failed for ${Path}: $($signature.Status)."
     }
     if (-not $RequireSigned -and $signature.Status -notin @(
         [System.Management.Automation.SignatureStatus]::NotSigned,
         [System.Management.Automation.SignatureStatus]::Valid
     )) {
-        throw "Unexpected Authenticode status for $Path: $($signature.Status)."
+        throw "Unexpected Authenticode status for ${Path}: $($signature.Status)."
     }
     Write-Host "Signature $($signature.Status): $Path"
 }
