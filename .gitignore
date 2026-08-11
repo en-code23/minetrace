@@ -1,0 +1,16 @@
+node_modules
+dist
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+!src-tauri/tests/
+!src-tauri/tests/fixtures/
+!src-tauri/tests/fixtures/logs/
+!src-tauri/tests/fixtures/logs/*.log
+src-tauri/target
+src-tauri/gen
+.idea
+.vscode/*
+!.vscode/extensions.json

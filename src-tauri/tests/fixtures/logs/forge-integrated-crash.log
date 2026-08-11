@@ -1,0 +1,5 @@
+[06Aug2026 22:55:01.123] [main/INFO] [FabricLoader/GameProvider/]: Loading Minecraft 1.21.1 with Fabric Loader 0.16.14
+[06Aug2026 22:55:08.000] [Server thread/INFO] [minecraft/MinecraftServer]: Starting integrated minecraft server version 1.21.1
+[06Aug2026 22:55:09.500] [Server thread/INFO] [minecraft/MinecraftServer]: Preparing level "Redstone Lab"
+[06Aug2026 23:14:42.010] [Render thread/ERROR] [minecraft/Minecraft]: Unreported exception thrown!
+[06Aug2026 23:14:42.500] [Render thread/FATAL] [minecraft/Minecraft]: This crash report has been saved to: crash-reports/crash-2026-08-06.txt

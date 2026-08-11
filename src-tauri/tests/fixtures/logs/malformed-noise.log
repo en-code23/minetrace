@@ -1,0 +1,6 @@
+launcher preamble without a Minecraft timestamp
+[25:61:61] [main/INFO]: harmless malformed prefix
+[09:00:00] [main/INFO]: Loading Minecraft 1.19.4 with Fabric Loader 0.14.25
+[09:00:02] [Render thread/INFO]: Could not parse optional mod metadata
+[08:59:59] [Render thread/INFO]: Backend library: LWJGL version 3.3.1
+[09:30:00] [Render thread/INFO]: Stopping!

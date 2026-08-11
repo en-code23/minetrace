@@ -1,0 +1,27 @@
+[package]
+name = "minetrace"
+version = "0.1.0"
+description = "Private, local-first Minecraft play history analytics"
+authors = ["MineTrace contributors"]
+edition = "2024"
+rust-version = "1.97"
+
+[lib]
+name = "minetrace_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+blake3 = "1.8.2"
+chrono = { version = "0.4.42", features = ["serde"] }
+flate2 = "1.1.5"
+libc = "0.2.180"
+rusqlite = { version = "0.40.1", features = ["bundled"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+tauri = { version = "2.11.5", features = [] }
+tauri-plugin-dialog = "2.7.2"
+tempfile = "3.24.0"
+thiserror = "2.0.18"

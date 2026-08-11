@@ -1,0 +1,388 @@
+/* ==========================================================================
+   MineTrace — download page
+   Forensic Cave Ledger: mineral surfaces, quiet borders, moss for action,
+   mono for machine-derived facts.
+   ========================================================================== */
+
+/* Tokens ------------------------------------------------------------------ */
+
+:root {
+  --canvas:            #0d110e;
+  --cave-1:            #111713;
+  --cave-2:            #151c17;
+  --cave-3:            #1a231c;
+  --cave-raised:       #202a22;
+  --control-inset:     #0b100d;
+
+  --quartz:            #f0f2ea;
+  --quartz-secondary:  #b7beb4;
+  --quartz-tertiary:   #858e84;
+  --quartz-muted:      #7c867c;
+
+  --moss:              #91af72;
+  --moss-bright:       #abd087;
+  --torch:             #d6a75d;
+  --rain:              #7d9fab;
+  --copper:            #b07a5c;
+
+  --border-soft:       rgba(240, 242, 234, 0.055);
+  --border-standard:   rgba(240, 242, 234, 0.095);
+  --border-strong:     rgba(240, 242, 234, 0.16);
+
+  --on-moss:           #0d110e;
+
+  --radius-control:    6px;
+  --radius-panel:      9px;
+  --radius-large:      13px;
+
+  --ease:              cubic-bezier(0.23, 1, 0.32, 1);
+  --dur-hover:         140ms;
+  --dur-press:         120ms;
+}
+
+/* Light theme — pale map paper and limestone, same hue relationships. */
+@media (prefers-color-scheme: light) {
+  :root {
+    --canvas:            #efede5;
+    --cave-1:            #f5f3ec;
+    --cave-2:            #e8e6dd;
+    --cave-3:            #deddd4;
+    --cave-raised:       #fbfaf5;
+    --control-inset:     #e4e2d8;
+
+    --quartz:            #18201a;
+    --quartz-secondary:  #3d463d;
+    --quartz-tertiary:   #5d665c;
+    --quartz-muted:      #6b736a;
+
+    --moss:              #587745;
+    --moss-bright:       #46632f;
+    --torch:             #91682f;
+    --rain:              #4d6c78;
+    --copper:            #8a563a;
+
+    --border-soft:       rgba(24, 32, 26, 0.06);
+    --border-standard:   rgba(24, 32, 26, 0.11);
+    --border-strong:     rgba(24, 32, 26, 0.18);
+
+    --on-moss:           #f5f3ec;
+  }
+}
+
+/* Base -------------------------------------------------------------------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--canvas);
+  color: var(--quartz);
+  font-family: "IBM Plex Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont,
+               "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.vh {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: absolute;
+  top: 8px; left: 8px;
+  z-index: 10;
+  transform: translateY(-200%);
+  padding: 8px 14px;
+  border-radius: var(--radius-control);
+  background: var(--cave-raised);
+  color: var(--quartz);
+  border: 1px solid var(--border-strong);
+  text-decoration: none;
+  font-size: 12px;
+}
+.skip-link:focus-visible { transform: translateY(0); }
+
+:where(a, button):focus-visible {
+  outline: 2px solid var(--moss-bright);
+  outline-offset: 2px;
+}
+
+/* Page shell -------------------------------------------------------------- */
+
+.page {
+  max-width: 880px;
+  margin-inline: auto;
+  padding: 96px 32px 72px;
+}
+
+/* Page header ------------------------------------------------------------- */
+
+.page-header { margin-bottom: 28px; }
+
+.brand-mark {
+  display: block;
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  margin-bottom: 22px;
+  border: 1px solid var(--border-soft);
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--moss);
+}
+
+.page-title {
+  margin: 0 0 12px;
+  font-size: 34px;
+  font-weight: 590;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.lede {
+  margin: 0;
+  max-width: 52ch;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--quartz-tertiary);
+  text-wrap: pretty;
+}
+
+/* Evidence seam ----------------------------------------------------------- */
+
+.seam {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 36px;
+  padding: 0 8px;
+  margin-bottom: 24px;
+  background: var(--control-inset);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+
+.seam .seg {
+  flex: 1;
+  min-width: 0;
+  border-radius: 1px;
+}
+
+.seam .verified { background: var(--moss); }
+.seam .high     { background: var(--rain); }
+
+.seam .partial {
+  background:
+    repeating-linear-gradient(45deg,
+      var(--torch) 0 2px,
+      transparent 2px 4px),
+    color-mix(in srgb, var(--torch) 18%, transparent);
+}
+
+.seam .missing {
+  background:
+    repeating-linear-gradient(45deg,
+      var(--quartz-muted) 0 2px,
+      transparent 2px 4px);
+  box-shadow: inset 0 0 0 1px var(--border-standard);
+}
+
+/* Download panels --------------------------------------------------------- */
+
+.download-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  background: var(--cave-1);
+  border: 1px solid var(--border-standard);
+  border-radius: var(--radius-large);
+}
+
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.platform-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-control);
+  background: var(--cave-2);
+  border: 1px solid var(--border-soft);
+  color: var(--quartz-secondary);
+}
+
+.panel-heading-text { flex: 1; min-width: 0; }
+
+.panel-title {
+  margin: 0 0 3px;
+  font-size: 17px;
+  font-weight: 580;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.panel-meta {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--quartz-tertiary);
+}
+
+.version-chip {
+  flex: none;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: var(--cave-2);
+  border: 1px solid var(--border-soft);
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--quartz-muted);
+}
+
+/* Download buttons — ledger rows: glyph, architecture, weight. */
+
+.button-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.download {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: var(--radius-control);
+  background: var(--moss);
+  color: var(--on-moss);
+  border: 1px solid transparent;
+  text-decoration: none;
+  transition:
+    background-color var(--dur-hover) var(--ease),
+    transform var(--dur-press) var(--ease);
+}
+
+.download:hover { background: var(--moss-bright); }
+.download:active { transform: scale(0.985); }
+
+/* Alternate architecture: same affordance, quieter surface, so moss stays
+   reserved for the one primary action per platform. */
+.download.secondary {
+  background: var(--cave-2);
+  color: var(--quartz);
+  border-color: var(--border-standard);
+  transition:
+    background-color var(--dur-hover) var(--ease),
+    border-color var(--dur-hover) var(--ease),
+    transform var(--dur-press) var(--ease);
+}
+
+.download.secondary:hover {
+  background: var(--cave-3);
+  border-color: var(--border-strong);
+}
+
+.download.secondary .download-glyph { color: var(--moss); opacity: 1; }
+.download.secondary .download-size { color: var(--quartz-muted); opacity: 1; }
+
+.download-glyph {
+  display: grid;
+  place-items: center;
+  flex: none;
+  opacity: 0.85;
+}
+
+.download-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.download-size {
+  flex: none;
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.72;
+}
+
+/* Footer ------------------------------------------------------------------ */
+
+.site-footer {
+  margin-top: 24px;
+  color: var(--quartz-tertiary);
+  font-size: 12px;
+}
+
+.site-footer p { margin: 6px 0 0; }
+
+.site-footer a {
+  color: var(--quartz-secondary);
+  text-underline-offset: 3px;
+}
+
+.site-footer a:hover { color: var(--moss-bright); }
+
+/* Responsive -------------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .page { padding: 56px 20px 48px; }
+  .page-title { font-size: 28px; }
+  .download-grid { grid-template-columns: 1fr; }
+  .seam { height: 28px; }
+}
+
+@media (max-width: 430px) {
+  .page { padding: 40px 16px 40px; }
+  .panel { padding: 16px; }
+}
+
+/* Reduced motion ---------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .download:active { transform: none; }
+}
