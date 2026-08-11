@@ -6,7 +6,7 @@ MineTrace is a private, local-first Minecraft Java Edition play-history viewer f
 
 Download MineTrace for Apple silicon macOS, Windows x64, or Windows ARM64:
 
-**[minetrace download page](https://en_code23.github.io/minetrace/)**
+**[minetrace download page](https://en-code23.github.io/minetrace/)**
 
 Version 0.1.0 installers are also stored in [`website/site/downloads`](website/site/downloads). These preview builds are not notarized or code-signed, so the operating system may show a security warning.
 
