@@ -210,3 +210,96 @@ export interface ScanProgress {
   finishedAt: string | null;
   datasetRevision: number | null;
 }
+
+export type StatisticUnit = "count" | "ticks" | "centimeters" | "tenths";
+export type StatisticsBasis = "uuidMatched" | "singleLocalPlayer" | "none";
+export type WorldAvailability = "available" | "missing" | "backupOnly";
+
+export interface ProfileIdentity {
+  name: string;
+  uuid: string | null;
+  source: string;
+  active: boolean;
+}
+
+export interface SkinAsset {
+  id: string;
+  dataUrl: string;
+  observedAt: string | null;
+  source: string;
+  width: number;
+  height: number;
+}
+
+export interface ProfileStatistic {
+  id: string;
+  label: string;
+  value: number;
+  unit: StatisticUnit;
+  sourceWorlds: number;
+}
+
+export interface ProfileStatisticSection {
+  id: string;
+  label: string;
+  items: ProfileStatistic[];
+}
+
+export interface LauncherUsage {
+  id: string;
+  name: string;
+  instances: number;
+  sessions: number;
+  totalMinutes: number;
+  firstObservedAt: string | null;
+  lastObservedAt: string | null;
+}
+
+export interface ProfileWorld {
+  id: string;
+  name: string;
+  folderName: string | null;
+  instance: string;
+  launcher: string;
+  availability: WorldAvailability;
+  totalMinutes: number | null;
+  lastObservedAt: string | null;
+  statsAvailable: boolean;
+  statsBasis: StatisticsBasis;
+  backupCount: number;
+}
+
+export interface WorldBackup {
+  id: string;
+  name: string;
+  instance: string;
+  sizeBytes: number;
+  modifiedAt: string | null;
+}
+
+export interface ProfileData {
+  generatedAt: string;
+  identity: ProfileIdentity | null;
+  identities: ProfileIdentity[];
+  currentSkin: SkinAsset | null;
+  previousSkins: SkinAsset[];
+  summary: {
+    totalPlaytimeMinutes: number;
+    sessions: number;
+    activeDays: number;
+    mostPlayedVersion: string | null;
+    mostPlayedWorld: string | null;
+    launcherCount: number;
+    availableWorlds: number;
+    missingWorlds: number;
+    backupCount: number;
+    statisticsWorlds: number;
+  };
+  randomStats: ProfileStatistic[];
+  statisticSections: ProfileStatisticSection[];
+  statisticsBasis: StatisticsBasis;
+  launchers: LauncherUsage[];
+  worlds: ProfileWorld[];
+  backups: WorldBackup[];
+  limitations: string[];
+}

@@ -15,6 +15,7 @@ import {
   Server,
   Settings2,
   ShieldCheck,
+  UserRound,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -26,9 +27,12 @@ import { EmptyState } from "../ui/EmptyState";
 import { TraceMark } from "../ui/TraceMark";
 import { SearchDialog } from "./SearchDialog";
 import { ArchiveRefreshMonitor } from "../system/ArchiveRefreshMonitor";
+import { AutomationController } from "../system/AutomationController";
+import { FirstRunSetup } from "../system/FirstRunSetup";
 
 const primaryNav = [
   { to: "/overview", label: "Overview", icon: LayoutDashboard },
+  { to: "/profile", label: "Profile", icon: UserRound },
   { to: "/sessions", label: "Sessions", icon: Clock3 },
   { to: "/instances", label: "Instances", icon: Layers3 },
   { to: "/worlds", label: "Worlds", icon: Globe2 },
@@ -38,6 +42,7 @@ const primaryNav = [
 
 const routeTitles: Record<string, { eyebrow: string; title: string }> = {
   "/overview": { eyebrow: "Archive", title: "Overview" },
+  "/profile": { eyebrow: "Player", title: "Profile" },
   "/sessions": { eyebrow: "Evidence", title: "Sessions" },
   "/instances": { eyebrow: "Library", title: "Instances" },
   "/worlds": { eyebrow: "Library", title: "Worlds" },
@@ -74,6 +79,7 @@ export function AppShell() {
       )}
     >
       <ArchiveRefreshMonitor enabled={native} />
+      <AutomationController enabled={native} />
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
@@ -238,6 +244,7 @@ export function AppShell() {
       </button>
 
       <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
+      <FirstRunSetup enabled={native} />
     </div>
   );
 }

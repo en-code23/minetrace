@@ -8,6 +8,7 @@ use crate::{
         error::ApiError,
     },
     application::{
+        ProfileData,
         read_models::{
             BoundedCollection, InstanceSummary, ServerSummary, SessionPage, VersionSummary,
             WorldSummary,
@@ -112,6 +113,46 @@ pub async fn get_versions(
         .await
         .map_err(|error| ApiError::background_task(error.to_string()))?
         .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn get_profile(state: State<'_, AppState>) -> Result<ProfileData, ApiError> {
+    let database = state.database.clone();
+    let discovery = state.discovery.clone();
+    let profile = state.profile;
+    tauri::async_runtime::spawn_blocking(move || profile.load(&database, &discovery))
+        .await
+        .map_err(|error| ApiError::background_task(error.to_string()))?
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn save_share_image(path: String, bytes: Vec<u8>) -> Result<(), ApiError> {
+    const MAX_SHARE_IMAGE_BYTES: usize = 10 * 1024 * 1024;
+    if bytes.len() > MAX_SHARE_IMAGE_BYTES || !bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        return Err(ApiError::invalid_request(
+            "The share card must be a PNG smaller than 10 MiB.",
+        ));
+    }
+    let path = PathBuf::from(path);
+    if path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+        != Some("png")
+    {
+        return Err(ApiError::invalid_request(
+            "Choose a destination ending in .png.",
+        ));
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        std::fs::write(&path, bytes)
+            .map_err(|error| crate::error::BackendError::io("save share image", &path, error))
+    })
+    .await
+    .map_err(|error| ApiError::background_task(error.to_string()))?
+    .map_err(ApiError::from)
 }
 
 #[tauri::command]

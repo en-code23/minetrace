@@ -51,8 +51,7 @@ export function OverviewPage() {
           : hasCompletedEmptyScan
             ? "Local archive · Scan completed without session evidence"
             : "Local archive · Awaiting first scan"}
-        title="Your play history, reconstructed"
-        description="A local record assembled from Minecraft Java client logs discovered through launcher locations."
+        title="Overview"
         actions={
           <div className="range-control" aria-label={hasEvidence ? `Displayed detected range: ${rangeLabel}` : "No detected date range yet"}>
             <CalendarRange aria-hidden="true" />

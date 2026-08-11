@@ -1,8 +1,11 @@
 import {
   ChevronRight,
   EyeOff,
+  Download,
   Laptop,
   Moon,
+  RefreshCw,
+  ScanLine,
   ShieldCheck,
   Sun,
   type LucideIcon,
@@ -10,25 +13,32 @@ import {
 import { type ReactNode } from "react";
 import { PageHeader } from "../components/ui/PageHeader";
 import { useUiStore, type ThemePreference } from "../stores/ui-store";
+import { useUpdateStore } from "../stores/update-store";
+import { Button } from "../components/ui/Button";
 
 export function SettingsPage() {
   const theme = useUiStore((state) => state.theme);
   const setTheme = useUiStore((state) => state.setTheme);
   const privacyMask = useUiStore((state) => state.privacyMask);
   const togglePrivacyMask = useUiStore((state) => state.togglePrivacyMask);
+  const autoScan = useUiStore((state) => state.autoScan);
+  const setAutoScan = useUiStore((state) => state.setAutoScan);
+  const autoUpdate = useUiStore((state) => state.autoUpdate);
+  const setAutoUpdate = useUiStore((state) => state.setAutoUpdate);
 
   return (
     <div className="page page--settings">
       <PageHeader
         eyebrow="Preferences · Current device"
         title="Settings"
-        description="Choose how MineTrace looks and how detected multiplayer destinations appear on this device."
+        description="Appearance, privacy, scanning, and app updates for this device."
       />
 
       <div className="settings-layout">
         <nav className="settings-index" aria-label="Settings sections">
           <a href="#appearance"><Sun aria-hidden="true" /><span>Appearance</span><ChevronRight aria-hidden="true" /></a>
           <a href="#privacy"><ShieldCheck aria-hidden="true" /><span>Privacy</span><ChevronRight aria-hidden="true" /></a>
+          <a href="#automation"><RefreshCw aria-hidden="true" /><span>Automation</span><ChevronRight aria-hidden="true" /></a>
         </nav>
 
         <div className="settings-sections">
@@ -40,15 +50,47 @@ export function SettingsPage() {
             </div>
           </SettingsSection>
 
-          <SettingsSection id="privacy" eyebrow="Private by default" title="Privacy" description="No account, telemetry, DNS lookup, or online profile request is enabled.">
-            <SettingsToggle icon={EyeOff} title="Mask server addresses" detail="Hide detected multiplayer destinations throughout MineTrace on this device." checked={privacyMask} onChange={() => togglePrivacyMask()} />
+          <SettingsSection id="privacy" eyebrow="Private by default" title="Privacy" description="Play data, account details, and server history are not uploaded.">
+            <SettingsToggle icon={EyeOff} title="Mask server addresses" detail="Obscure most of each detected multiplayer destination throughout MineTrace on this device." checked={privacyMask} onChange={() => togglePrivacyMask()} />
             <div className="privacy-audit">
               <ShieldCheck aria-hidden="true" />
-              <div><strong>No network-backed features</strong><span>Scanning and analytics stay local. File access is limited to controlled backend commands.</span></div>
+              <div><strong>Play analysis stays local</strong><span>Only the updater contacts GitHub, when enabled or checked manually. No play data is included.</span></div>
             </div>
+          </SettingsSection>
+
+          <SettingsSection id="automation" eyebrow="Keep it current" title="Automation" description="Choose what MineTrace does without an extra click.">
+            <SettingsToggle icon={ScanLine} title="Refresh statistics automatically" detail="Run a standard read-only scan at launch and every 30 minutes while MineTrace is open." checked={autoScan} onChange={setAutoScan} />
+            <SettingsToggle icon={RefreshCw} title="Install app updates automatically" detail="Check for signed GitHub releases at launch, install an available update, then restart." checked={autoUpdate} onChange={setAutoUpdate} />
+            <UpdateControls />
           </SettingsSection>
         </div>
       </div>
+    </div>
+  );
+}
+
+function UpdateControls() {
+  const state = useUpdateStore((value) => value.state);
+  const version = useUpdateStore((value) => value.availableVersion);
+  const progress = useUpdateStore((value) => value.progress);
+  const message = useUpdateStore((value) => value.message);
+  const checkForUpdates = useUpdateStore((value) => value.checkForUpdates);
+  const installAvailableUpdate = useUpdateStore((value) => value.installAvailableUpdate);
+  const busy = state === "checking" || state === "downloading" || state === "ready";
+
+  return (
+    <div className={`update-control update-control--${state}`}>
+      <span className="settings-toggle-row__icon" aria-hidden="true"><Download /></span>
+      <div>
+        <strong>{version ? `MineTrace ${version}` : "App updates"}</strong>
+        <small>{message ?? "Check GitHub Releases for a newer signed version."}</small>
+        {state === "downloading" && <progress value={progress ?? undefined} max={1} aria-label="Update download progress" />}
+      </div>
+      {state === "available" ? (
+        <Button size="small" variant="primary" onClick={() => void installAvailableUpdate()}>Update & restart</Button>
+      ) : (
+        <Button size="small" variant="secondary" loading={busy} onClick={() => void checkForUpdates(false)}>Check now</Button>
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { getScanStatus } from "../../lib/runtime";
 import { canonicalArchiveChanged, scanIsRunning } from "../../lib/scanStatus";
 import type { ScanProgress } from "../../types/domain";
 
-const archiveQueryRoots = ["dashboard", "sessions", "instances", "worlds", "servers", "versions"];
+const archiveQueryRoots = ["dashboard", "sessions", "instances", "worlds", "servers", "versions", "profile"];
 
 export function ArchiveRefreshMonitor({ enabled }: { enabled: boolean }) {
   const queryClient = useQueryClient();

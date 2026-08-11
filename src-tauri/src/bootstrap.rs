@@ -3,7 +3,9 @@ use std::fs;
 use tauri::{AppHandle, Manager, Runtime};
 
 use crate::{
-    application::{DashboardService, DiscoveryService, ExplorerService, ScanService},
+    application::{
+        DashboardService, DiscoveryService, ExplorerService, ProfileService, ScanService,
+    },
     discovery::AdapterRegistry,
     error::BackendError,
     platform::PlatformPaths,
@@ -39,6 +41,7 @@ pub fn initialize<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, BackendErr
         database,
         dashboard: DashboardService,
         explorer: ExplorerService,
+        profile: ProfileService,
         discovery,
         scan,
     })

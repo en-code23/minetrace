@@ -21,6 +21,15 @@ impl ApiError {
             details: None,
         }
     }
+
+    pub fn invalid_request(message: impl Into<String>) -> Self {
+        Self {
+            code: "invalid_request",
+            message: message.into(),
+            retryable: false,
+            details: None,
+        }
+    }
 }
 
 impl From<BackendError> for ApiError {

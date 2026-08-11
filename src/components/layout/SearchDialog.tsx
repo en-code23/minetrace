@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Search,
   Server,
+  UserRound,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -23,6 +24,7 @@ type SearchEntry = {
 
 const routeEntries: SearchEntry[] = [
   { id: "route-overview", label: "Overview", detail: "Archive summary", group: "Pages", to: "/overview", icon: LayoutDashboard },
+  { id: "route-profile", label: "Profile", detail: "Player, skins and statistics", group: "Pages", to: "/profile", icon: UserRound },
   { id: "route-sessions", label: "Sessions", detail: "Timeline and evidence", group: "Pages", to: "/sessions", icon: Clock3 },
   { id: "route-instances", label: "Instances", detail: "Launcher profiles", group: "Pages", to: "/instances", icon: Layers3 },
   { id: "route-worlds", label: "Worlds", detail: "Session-linked worlds", group: "Pages", to: "/worlds", icon: Globe2 },

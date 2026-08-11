@@ -55,7 +55,6 @@ export function InstancesPage() {
     <PageHeader
       eyebrow="Observed archive · Detected profiles"
       title="Instances"
-      description="Minecraft installations and isolated profiles joined only to the session evidence found on this device."
       actions={
         <Button leadingIcon={<Plus aria-hidden="true" />} onClick={() => navigate("/scan")}>
           Add location

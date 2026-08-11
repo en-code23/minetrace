@@ -18,6 +18,8 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let state = bootstrap::initialize(app.handle())?;
             app.manage(state);
@@ -31,6 +33,8 @@ pub fn run() {
             api::commands::get_worlds,
             api::commands::get_servers,
             api::commands::get_versions,
+            api::commands::get_profile,
+            api::commands::save_share_image,
             api::commands::add_custom_location,
             api::commands::start_scan,
             api::commands::get_scan_status,

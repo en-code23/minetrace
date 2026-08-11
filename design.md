@@ -97,6 +97,26 @@ Below the hero, panels alternate between broad visual summaries and tighter evid
 
 The interface is mostly charcoal-green and quartz. Moss is used sparingly for verified evidence, active navigation, and primary action. Amber appears only when uncertainty or gaps need attention. The result is dark but not cyberpunk, Minecraft-inspired but not pixel-art, and technical without looking like a developer console.
 
+## Profile composition: player dossier
+
+Profile extends the Forensic Cave Ledger into a **player dossier**, not a social-network profile. The hero combines a pixel-accurate front skin render, a compact head portrait, the locally detected player identity, and four archive facts. A diagonal evidence line and a thin moss-to-copper seam connect it to the dashboard without turning the screen into a game launcher.
+
+The internal tabs are deliberately task-based:
+
+1. **Overview** — stat spotlights, most-played worlds, save availability, backups, and locally retained previous skins.
+2. **Statistics** — source-backed single-player statistics grouped into general, movement, mined, crafted, used, and defeated categories.
+3. **Clients & launchers** — every retained launcher aggregate plus locally detected launcher identities.
+
+Stat spotlights are selected deterministically from real local data, so they feel varied without changing every render or relying on fabricated achievements. The tiles reuse moss, torch, rain, and copper as a four-beat ledger sequence; they do not become rainbow KPI cards.
+
+World status uses explicit evidence language:
+
+- moss dot: save folder available;
+- redstone dot: save not found, which may mean deleted, moved, renamed, or outside approved locations;
+- torch dot: backup archive found without a matching live save.
+
+The share flow is an honest image builder. The user selects fields, MineTrace renders a 1200×630 PNG locally, and a native save panel chooses the destination. The app never claims to post directly to a network and never includes server addresses in the card.
+
 ## Color system
 
 Token names are part of the product vocabulary. Surfaces are named as cave layers, text as quartz, and semantic accents after materials or weather.

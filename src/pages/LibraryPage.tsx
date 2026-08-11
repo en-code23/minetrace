@@ -34,23 +34,20 @@ const emptyWorldCollection: BoundedCollection<WorldSummary> = { items: emptyWorl
 const emptyServerCollection: BoundedCollection<ServerSummary> = { items: emptyServers, total: 0, truncated: false };
 const emptyVersionCollection: BoundedCollection<VersionSummary> = { items: emptyVersions, total: 0, truncated: false };
 
-const metadata: Record<LibraryKind, { eyebrow: string; title: string; description: string; fact: string }> = {
+const metadata: Record<LibraryKind, { eyebrow: string; title: string; fact: string }> = {
   worlds: {
     eyebrow: "Observed archive · Session-linked worlds",
     title: "Worlds",
-    description: "World names observed in reconstructed sessions. Save folders and NBT metadata are not read by this view.",
     fact: "Session-linked runtime",
   },
   servers: {
     eyebrow: "Observed archive · Multiplayer destinations",
     title: "Servers",
-    description: "Multiplayer destinations observed in retained session logs, without resolving or contacting an address.",
     fact: "Session-linked runtime",
   },
   versions: {
     eyebrow: "Observed archive · Version timeline",
     title: "Versions",
-    description: "Minecraft versions and loaders explicitly linked to reconstructed sessions in the local archive.",
     fact: "Reconstructed sessions",
   },
 };
@@ -73,7 +70,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
 
   return (
     <div className={`page page--library page--${kind}`}>
-      <PageHeader eyebrow={info.eyebrow} title={info.title} description={info.description} />
+      <PageHeader eyebrow={info.eyebrow} title={info.title} />
 
       <div className="library-toolbar">
         <label className="search-input">

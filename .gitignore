@@ -4,6 +4,7 @@ dist
 *.log
 .env
 .env.*
+.secrets/
 !.env.example
 !src-tauri/tests/
 !src-tauri/tests/fixtures/

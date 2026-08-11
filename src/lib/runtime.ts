@@ -4,6 +4,7 @@ import type {
   DashboardData,
   DiscoveredLocation,
   InstanceSummary,
+  ProfileData,
   ScanMode,
   ScanProgress,
   ServerSummary,
@@ -50,6 +51,16 @@ export async function getServers(): Promise<BoundedCollection<ServerSummary>> {
 export async function getVersions(): Promise<BoundedCollection<VersionSummary>> {
   requireNativeRuntime();
   return invoke<BoundedCollection<VersionSummary>>("get_versions");
+}
+
+export async function getProfile(): Promise<ProfileData> {
+  requireNativeRuntime();
+  return invoke<ProfileData>("get_profile");
+}
+
+export async function saveShareImage(path: string, bytes: number[]): Promise<void> {
+  requireNativeRuntime();
+  return invoke<void>("save_share_image", { path, bytes });
 }
 
 export async function discoverInstallations(): Promise<DiscoveredLocation[]> {

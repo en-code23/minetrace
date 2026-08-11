@@ -261,15 +261,25 @@ export function ScanPage() {
   return (
     <div className="page page--scan">
       <PageHeader
-        eyebrow={`Local scanner · ${platform === "macos" ? "macOS" : platform}`}
-        title="Scan center"
-        description="Run the read-only local scanner and follow counts, paths, warnings, and errors reported by the backend."
-        actions={
-          <Button variant="secondary" leadingIcon={<FolderInput aria-hidden="true" />} onClick={() => void chooseFolder()} disabled={isRunning}>
-            Add folder
-          </Button>
-        }
+        eyebrow={`Your data · ${platform === "macos" ? "macOS" : platform}`}
+        title="Update your stats"
+        description="MineTrace finds Minecraft automatically. Press the button and keep the app open until it finishes."
       />
+
+      <section className="scan-simple" aria-labelledby="scan-simple-title">
+        <span className="scan-simple__icon" aria-hidden="true"><ScanLine /></span>
+        <div>
+          <p className="eyebrow">{isRunning ? `${percent}% complete` : "One-click refresh"}</p>
+          <h2 id="scan-simple-title">{isRunning ? currentCopy.label : "Update my stats"}</h2>
+          <p>{isRunning ? (progress.message ?? currentCopy.description) : `${enabledRoots} ${enabledRoots === 1 ? "Minecraft location is" : "Minecraft locations are"} ready. Files are read only and stay on this PC.`}</p>
+        </div>
+        {isRunning ? (
+          <Button variant="ghost" leadingIcon={<CircleStop aria-hidden="true" />} onClick={() => void handleCancelScan()} disabled={actionPending === "cancel"}>{actionPending === "cancel" ? "Stopping…" : "Stop"}</Button>
+        ) : (
+          <Button variant="primary" leadingIcon={<Play aria-hidden="true" />} onClick={() => void handleStartScan()} disabled={statusLoading || actionPending !== null || enabledRoots === 0}>{startLabel}</Button>
+        )}
+        {isRunning && <progress value={progress.current} max={Math.max(progress.total, 1)} aria-label="Scan progress" />}
+      </section>
 
       <section className="scan-trust-strip" aria-label="Scanning guarantees">
         <span><ShieldCheck aria-hidden="true" /><strong>Read-only</strong><small>Source files are never changed</small></span>
@@ -281,7 +291,9 @@ export function ScanPage() {
         </span>
       </section>
 
-      <div className="scan-grid">
+      <details className="scan-advanced">
+        <summary><span>Advanced options</span><small>Folders, scan depth, and source details</small><ChevronRight aria-hidden="true" /></summary>
+        <div className="scan-grid">
         <section className="panel source-panel" aria-labelledby="source-heading">
           <header className="panel__header">
             <div>
@@ -299,6 +311,7 @@ export function ScanPage() {
             >
               <RotateCw aria-hidden="true" />
             </button>
+            <Button size="small" variant="secondary" leadingIcon={<FolderInput aria-hidden="true" />} onClick={() => void chooseFolder()} disabled={isRunning}>Add folder</Button>
           </header>
 
           {discovery.isPending ? (
@@ -361,7 +374,8 @@ export function ScanPage() {
             <div><span>Status source</span><strong>Local scanner</strong></div>
           </div>
         </section>
-      </div>
+        </div>
+      </details>
 
       <section
         className={`scan-console scan-console--${progress.phase}`}
