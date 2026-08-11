@@ -31,3 +31,7 @@ pnpm build
 The React interface lives in `src`, the Rust/Tauri backend in `src-tauri`, and the GitHub Pages download site in `website/site`.
 
 MineTrace is an independent project and is not affiliated with Mojang Studios or Microsoft.
+
+## License
+
+MineTrace is available under the [MIT License](LICENSE). Copyright © 2026 en-code23.
