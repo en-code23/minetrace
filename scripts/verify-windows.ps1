@@ -169,18 +169,31 @@ if ($SmokeInstall -or $UpgradeSmokeInstall) {
         if (-not (Test-Path -LiteralPath $installedApplication -PathType Leaf)) {
             throw "MineTrace 0.1.0 was not installed before the upgrade test."
         }
-        $previousApp = Start-Process -FilePath $installedApplication -PassThru
-        Start-Sleep -Seconds 8
-        $previousApp.Refresh()
-        if ($previousApp.HasExited) {
-            throw "MineTrace 0.1.0 exited while preparing the upgrade fixture with code $($previousApp.ExitCode)."
-        }
-        Stop-Process -Id $previousApp.Id -Force
-        $previousApp.WaitForExit(5000) | Out-Null
-
         $archivePath = Join-Path $env:LOCALAPPDATA "com.minetrace.desktop\minetrace.sqlite3"
+        $previousApp = Start-Process -FilePath $installedApplication -PassThru
+        try {
+            $fixtureDeadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
+            while (
+                -not (Test-Path -LiteralPath $archivePath -PathType Leaf) -and
+                [DateTimeOffset]::UtcNow -lt $fixtureDeadline
+            ) {
+                Start-Sleep -Milliseconds 500
+                $previousApp.Refresh()
+                if ($previousApp.HasExited) {
+                    throw "MineTrace 0.1.0 exited while preparing the upgrade fixture with code $($previousApp.ExitCode)."
+                }
+            }
+        }
+        finally {
+            $previousApp.Refresh()
+            if (-not $previousApp.HasExited) {
+                Stop-Process -Id $previousApp.Id -Force
+                $previousApp.WaitForExit(5000) | Out-Null
+            }
+        }
+
         if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
-            throw "MineTrace 0.1.0 did not create the expected local archive before upgrade."
+            throw "MineTrace 0.1.0 did not create the expected local archive within 30 seconds before upgrade."
         }
         Write-Host "MineTrace 0.1.0 fixture is ready; installing the current version over it."
     }
