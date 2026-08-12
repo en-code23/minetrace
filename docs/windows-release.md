@@ -183,6 +183,6 @@ Before calling either Windows architecture finished:
 
 ## Current limitations
 
-MineTrace remains the bounded log-evidence v1 documented in the README. It does not claim world-save/NBT inspection, mod inventory, screenshots, corrections, exports, additional launcher adapters, updater delivery, or Microsoft Store packaging. Prism installations using a custom external `InstanceDir` must currently be added through the folder picker. Those limitations are shared product scope, not Windows-only failures.
+MineTrace remains the bounded log-evidence v1 documented in the README. It does not claim world-save/NBT inspection, mod inventory, screenshots, corrections, exports, additional launcher adapters, or Microsoft Store packaging. Prism installations using a custom external `InstanceDir` must currently be added through the folder picker. Signed Tauri update payloads are supported through the Settings button and the optional launch-time update check; this cryptographic updater signature is separate from Windows Authenticode publisher trust. Those limitations are shared product scope, not Windows-only failures.
 
 The Mac development host can cross-compile and statically inspect x64 and ARM64 executables and NSIS packages, but it cannot prove a Windows installer or Windows runtime. Completion therefore requires the matching native workflow or a real Windows machine to produce and smoke-test the final `.exe`/`.msi` artifacts.

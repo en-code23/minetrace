@@ -248,7 +248,7 @@ Confirm that:
 - cancellation, incremental rescan, canonical explorer reads, and database reopening work;
 - source file hashes and modification times are unchanged by a scan.
 
-Updater archives and signatures are not v1 release artifacts. Add them only when the user-visible, opt-in updater is implemented.
+Verify that the release contains signed Tauri updater archives and a `latest.json` entry for Apple silicon. The Settings button and the optional launch-time update check must both reject payloads that do not match the public updater key embedded in the app. Updater signing does not replace Developer ID signing or Apple notarization.
 
 ## Current Mac capabilities and limitations
 
