@@ -2,6 +2,8 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$BundleRoot,
+    [Parameter(Mandatory = $true)]
+    [string]$ExpectedVersion,
     [ValidateSet("X64", "Arm64")]
     [string]$Architecture = "X64",
     [bool]$RequireSigned = $false,
@@ -109,8 +111,15 @@ $version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($application)
 if ($version.ProductName -ne "MineTrace") {
     throw "Unexpected Windows ProductName '$($version.ProductName)'."
 }
-if ($version.FileVersion -notlike "0.1.0*") {
-    throw "Unexpected Windows file version '$($version.FileVersion)'."
+$actualFileVersion = [System.Version]::Parse($version.FileVersion)
+$configuredVersion = [System.Version]::Parse($ExpectedVersion)
+$versionMatches =
+    $actualFileVersion.Major -eq $configuredVersion.Major -and
+    $actualFileVersion.Minor -eq $configuredVersion.Minor -and
+    $actualFileVersion.Build -eq $configuredVersion.Build -and
+    ($configuredVersion.Revision -lt 0 -or $actualFileVersion.Revision -eq $configuredVersion.Revision)
+if (-not $versionMatches) {
+    throw "Unexpected Windows file version '$($version.FileVersion)'; expected '$ExpectedVersion'."
 }
 
 $artifacts = @($application, $nsisInstallers[0].FullName, $msiInstallers[0].FullName)

@@ -19,6 +19,11 @@ if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $tauriRoot = Join-Path $repoRoot "src-tauri"
+$tauriConfig = Get-Content -LiteralPath (Join-Path $tauriRoot "tauri.conf.json") -Raw | ConvertFrom-Json
+$expectedVersion = [string]$tauriConfig.version
+if ([string]::IsNullOrWhiteSpace($expectedVersion)) {
+    throw "src-tauri/tauri.conf.json does not define an application version."
+}
 $targetTriple = if ($Architecture -eq "Arm64") {
     "aarch64-pc-windows-msvc"
 }
@@ -109,6 +114,7 @@ try {
 
     $verifyArgs = @{
         BundleRoot = $bundleRoot
+        ExpectedVersion = $expectedVersion
         Architecture = $Architecture
         RequireSigned = $requireSigned
         SmokeInstall = [bool]$SmokeInstall
