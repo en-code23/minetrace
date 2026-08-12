@@ -18,6 +18,19 @@ use crate::{
     state::AppState,
 };
 
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FrontendIssueKind {
+    RenderFailure,
+    UnhandledError,
+    UnhandledRejection,
+}
+
+#[tauri::command]
+pub fn record_frontend_issue(kind: FrontendIssueKind) {
+    log::error!("frontend reported a redacted issue category: {kind:?}");
+}
+
 #[tauri::command]
 pub async fn discover_installations(
     state: State<'_, AppState>,

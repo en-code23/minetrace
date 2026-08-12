@@ -73,6 +73,7 @@ pub fn run() {
             api::commands::get_servers,
             api::commands::get_versions,
             api::commands::get_profile,
+            api::commands::record_frontend_issue,
             api::commands::save_share_image,
             api::commands::add_custom_location,
             api::commands::start_scan,

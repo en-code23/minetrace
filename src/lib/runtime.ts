@@ -88,6 +88,13 @@ export async function cancelScan(): Promise<ScanProgress> {
   return invoke<ScanProgress>("cancel_scan");
 }
 
+export async function recordFrontendIssue(
+  kind: "renderFailure" | "unhandledError" | "unhandledRejection",
+): Promise<void> {
+  if (!isTauriRuntime()) return;
+  return invoke<void>("record_frontend_issue", { kind });
+}
+
 export function detectPlatform(): "windows" | "macos" | "linux" {
   const platform = typeof navigator === "undefined"
     ? ""

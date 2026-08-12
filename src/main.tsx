@@ -7,6 +7,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { AppErrorBoundary } from "./components/system/AppErrorBoundary";
+import { recordFrontendIssue } from "./lib/runtime";
 import { initializeTheme } from "./stores/ui-store";
 import "./styles/global.css";
 
@@ -21,6 +22,13 @@ const queryClient = new QueryClient({
 });
 
 initializeTheme();
+
+window.addEventListener("error", () => {
+  void recordFrontendIssue("unhandledError").catch(() => undefined);
+});
+window.addEventListener("unhandledrejection", () => {
+  void recordFrontendIssue("unhandledRejection").catch(() => undefined);
+});
 
 const root = document.getElementById("root");
 

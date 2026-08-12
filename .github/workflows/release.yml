@@ -121,7 +121,7 @@ jobs:
           tagName: v__VERSION__
           releaseName: MineTrace v__VERSION__
           releaseBody: Download the installer for your platform. MineTrace verifies every in-app update with its embedded updater public key.
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           generateReleaseNotes: true
           updaterJsonPreferNsis: true
@@ -160,3 +160,37 @@ jobs:
         uses: actions/attest-build-provenance@v3
         with:
           subject-path: src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+
+  finalize:
+    name: Verify and publish release
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Verify updater manifest and publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v${VERSION}"
+          mkdir -p "$RUNNER_TEMP/minetrace-release"
+          gh release download "$TAG" --pattern latest.json --dir "$RUNNER_TEMP/minetrace-release"
+          node - "$RUNNER_TEMP/minetrace-release/latest.json" "$VERSION" <<'NODE'
+          const fs = require('node:fs');
+          const [manifestPath, expectedVersion] = process.argv.slice(2);
+          const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+          const platforms = Object.values(manifest.platforms ?? {});
+          if (manifest.version !== expectedVersion || platforms.length < 3) {
+            throw new Error('latest.json is missing the expected version or desktop platforms');
+          }
+          for (const platform of platforms) {
+            if (!platform.url || !platform.signature) {
+              throw new Error('latest.json contains an unsigned or missing updater payload');
+            }
+          }
+          NODE
+          gh release edit "$TAG" --draft=false --latest

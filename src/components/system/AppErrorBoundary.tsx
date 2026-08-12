@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import { recordFrontendIssue } from "../../lib/runtime";
 
 interface AppErrorBoundaryProps {
   children: ReactNode;
@@ -18,6 +19,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
   componentDidCatch(): void {
     // The recovery screen intentionally avoids persisting error text because it
     // can contain private launcher paths or destination evidence.
+    void recordFrontendIssue("renderFailure").catch(() => undefined);
   }
 
   render() {
