@@ -7,7 +7,8 @@ param(
     [ValidateSet("X64", "Arm64")]
     [string]$Architecture = "X64",
     [bool]$RequireSigned = $false,
-    [bool]$SmokeInstall = $false
+    [bool]$SmokeInstall = $false,
+    [bool]$UpgradeSmokeInstall = $false
 )
 
 Set-StrictMode -Version Latest
@@ -135,7 +136,7 @@ $checksumLines = foreach ($artifact in $artifacts) {
 [System.IO.File]::WriteAllLines($checksumPath, $checksumLines, [System.Text.UTF8Encoding]::new($false))
 Write-Host "Wrote $checksumPath"
 
-if ($SmokeInstall) {
+if ($SmokeInstall -or $UpgradeSmokeInstall) {
     $hostArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
     if ($hostArchitecture -ne $Architecture) {
         throw "The $architectureLabel smoke test requires a matching Windows host; this host is $hostArchitecture."
@@ -148,7 +149,44 @@ if ($SmokeInstall) {
         throw "Refusing to overwrite an existing MineTrace installation at $installRoot."
     }
 
-    Write-Host "Running clean per-user NSIS install smoke test."
+    if ($UpgradeSmokeInstall) {
+        $previousInstallerName = if ($Architecture -eq "Arm64") {
+            "MineTrace_0.1.0_arm64-setup.exe"
+        }
+        else {
+            "MineTrace_0.1.0_x64-setup.exe"
+        }
+        $previousInstaller = Join-Path $env:RUNNER_TEMP $previousInstallerName
+        $previousInstallerUrl = "https://github.com/en-code23/minetrace/releases/download/v0.1.0/$previousInstallerName"
+        Write-Host "Downloading the published 0.1.0 installer for an upgrade smoke test."
+        Invoke-WebRequest -Uri $previousInstallerUrl -OutFile $previousInstaller -UseBasicParsing
+        Assert-PortableExecutable -Path $previousInstaller
+
+        $previousInstall = Start-Process -FilePath $previousInstaller -ArgumentList "/S" -PassThru -Wait
+        if ($previousInstall.ExitCode -ne 0) {
+            throw "MineTrace 0.1.0 installation failed with exit code $($previousInstall.ExitCode)."
+        }
+        if (-not (Test-Path -LiteralPath $installedApplication -PathType Leaf)) {
+            throw "MineTrace 0.1.0 was not installed before the upgrade test."
+        }
+        $previousApp = Start-Process -FilePath $installedApplication -PassThru
+        Start-Sleep -Seconds 8
+        $previousApp.Refresh()
+        if ($previousApp.HasExited) {
+            throw "MineTrace 0.1.0 exited while preparing the upgrade fixture with code $($previousApp.ExitCode)."
+        }
+        Stop-Process -Id $previousApp.Id -Force
+        $previousApp.WaitForExit(5000) | Out-Null
+
+        $archivePath = Join-Path $env:LOCALAPPDATA "com.minetrace.desktop\minetrace.sqlite3"
+        if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
+            throw "MineTrace 0.1.0 did not create the expected local archive before upgrade."
+        }
+        Write-Host "MineTrace 0.1.0 fixture is ready; installing the current version over it."
+    }
+    else {
+        Write-Host "Running clean per-user NSIS install smoke test."
+    }
     $installerProcess = Start-Process -FilePath $nsisInstallers[0].FullName -ArgumentList "/S" -PassThru -Wait
     if ($installerProcess.ExitCode -ne 0) {
         throw "Silent NSIS installation failed with exit code $($installerProcess.ExitCode)."
@@ -163,12 +201,13 @@ if ($SmokeInstall) {
     $appProcess = $null
     try {
         $appProcess = Start-Process -FilePath $installedApplication -PassThru
-        Start-Sleep -Seconds 8
+        Start-Sleep -Seconds 15
         $appProcess.Refresh()
         if ($appProcess.HasExited) {
             throw "MineTrace exited during the Windows launch smoke test with code $($appProcess.ExitCode)."
         }
-        Write-Host "Installed MineTrace remained live through the launch smoke test."
+        $smokeKind = if ($UpgradeSmokeInstall) { "upgrade" } else { "clean install" }
+        Write-Host "MineTrace remained live through the $smokeKind launch smoke test."
     }
     finally {
         if ($null -ne $appProcess -and -not $appProcess.HasExited) {

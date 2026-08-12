@@ -6,7 +6,8 @@ param(
     [string]$Architecture = "X64",
     [switch]$SkipChecks,
     [switch]$SkipTargetTests,
-    [switch]$SmokeInstall
+    [switch]$SmokeInstall,
+    [switch]$UpgradeSmokeInstall
 )
 
 Set-StrictMode -Version Latest
@@ -38,7 +39,7 @@ $hostArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchi
 if (-not $SkipChecks -and -not $SkipTargetTests -and $hostArchitecture -ne $Architecture) {
     throw "$architectureLabel target tests require a matching Windows host. Use -SkipTargetTests only for a cross-build; native CI must still run the tests."
 }
-if ($SmokeInstall -and $hostArchitecture -ne $Architecture) {
+if (($SmokeInstall -or $UpgradeSmokeInstall) -and $hostArchitecture -ne $Architecture) {
     throw "$architectureLabel install/launch verification requires a matching Windows host; this host is $hostArchitecture."
 }
 
@@ -118,6 +119,7 @@ try {
         Architecture = $Architecture
         RequireSigned = $requireSigned
         SmokeInstall = [bool]$SmokeInstall
+        UpgradeSmokeInstall = [bool]$UpgradeSmokeInstall
     }
     & $verifyScript @verifyArgs
 }

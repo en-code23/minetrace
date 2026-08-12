@@ -76,7 +76,29 @@ jobs:
 
       - name: Build and smoke-test unsigned installers
         shell: pwsh
-        run: ./scripts/build-windows.ps1 -Mode Local -Architecture ${{ matrix.architecture }} -SmokeInstall
+        run: ./scripts/build-windows.ps1 -Mode Local -Architecture ${{ matrix.architecture }} -UpgradeSmokeInstall
+
+      - name: Collect startup diagnostics on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP "minetrace-startup"
+          New-Item -ItemType Directory -Path $destination -Force | Out-Null
+          $logRoot = Join-Path $env:LOCALAPPDATA "com.minetrace.desktop\logs"
+          if (Test-Path -LiteralPath $logRoot) {
+            Copy-Item -LiteralPath $logRoot -Destination $destination -Recurse -Force
+          }
+
+      - name: Upload startup diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MineTrace-${{ matrix.label }}-startup-diagnostics
+          if-no-files-found: ignore
+          retention-days: 7
+          include-hidden-files: true
+          path: |
+            ${{ runner.temp }}/minetrace-startup/**
 
       - name: Upload verified Windows bundles
         uses: actions/upload-artifact@v4
