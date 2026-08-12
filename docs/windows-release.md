@@ -127,6 +127,8 @@ $env:MINETRACE_WINDOWS_TIMESTAMP_URL = "https://YOUR_PROVIDER_RFC3161_TIMESTAMP"
 
 Release mode merges an in-memory Tauri signing overlay using SHA-256 and RFC 3161 timestamping. It fails closed if either setting is missing, and artifact verification requires `Get-AuthenticodeSignature` to report `Valid` for the executable, NSIS installer, and MSI. Never echo the PFX password, enable PowerShell tracing around certificate import, store a certificate in the repository, or upload signing material as a build artifact.
 
+For GitHub releases, store the base64-encoded PFX as `WINDOWS_CERTIFICATE` and its password as `WINDOWS_CERTIFICATE_PASSWORD` in repository Actions secrets. The release workflow imports it into the ephemeral runner certificate store, applies and verifies timestamped Authenticode signatures, and emits GitHub build-provenance attestations. `TAURI_SIGNING_PRIVATE_KEY` is separate and mandatory: it signs the Tauri update payload consumed by the in-app updater, while Authenticode establishes the Windows publisher identity.
+
 An unsigned build can run locally, but Windows may show an Unknown Publisher or SmartScreen warning. Do not describe an unsigned artifact as production-signed.
 
 ## CI contract

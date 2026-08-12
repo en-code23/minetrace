@@ -82,6 +82,8 @@ Pushing a `v*` tag runs [the release workflow](.github/workflows/release.yml) fo
 
 Repository maintainers must add the updater private key as the Actions secret `TAURI_SIGNING_PRIVATE_KEY`. The matching private key must be backed up securely; it is intentionally ignored by Git and must never be committed.
 
+Windows release builds can additionally use a CA-issued Authenticode certificate through the encrypted Actions secrets `WINDOWS_CERTIFICATE` (base64-encoded PFX) and `WINDOWS_CERTIFICATE_PASSWORD`. The workflow imports it only on the ephemeral Windows runner, signs and timestamps the executable and installers, verifies every signature, and records GitHub build-provenance attestations. A self-signed certificate does not establish Windows trust.
+
 ## License
 
 MineTrace is available under the [MIT License](LICENSE). Copyright © 2026 en-code23.
