@@ -32,6 +32,12 @@ else {
     "x86_64-pc-windows-msvc"
 }
 $architectureLabel = if ($Architecture -eq "Arm64") { "ARM64" } else { "x64" }
+$architectureConfig = if ($Architecture -eq "Arm64") {
+    "src-tauri/tauri.windows.arm64.conf.json"
+}
+else {
+    "src-tauri/tauri.windows.x64.conf.json"
+}
 $bundleRoot = Join-Path $tauriRoot "target\$targetTriple\release\bundle"
 $verifyScript = Join-Path $PSScriptRoot "verify-windows.ps1"
 $hostArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
@@ -79,6 +85,7 @@ try {
     $buildArgs = @(
         "tauri", "build",
         "--config", "src-tauri/tauri.windows.conf.json",
+        "--config", $architectureConfig,
         "--target", $targetTriple,
         "--bundles", "nsis,msi",
         "--ci"

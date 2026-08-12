@@ -29,11 +29,11 @@ jobs:
           - label: Windows x64
             runner: windows-latest
             target: x86_64-pc-windows-msvc
-            args: --target x86_64-pc-windows-msvc --config src-tauri/tauri.windows.release.conf.json
+            args: --target x86_64-pc-windows-msvc --config src-tauri/tauri.windows.release.conf.json --config src-tauri/tauri.windows.x64.conf.json
           - label: Windows ARM64
             runner: windows-11-arm
             target: aarch64-pc-windows-msvc
-            args: --target aarch64-pc-windows-msvc --config src-tauri/tauri.windows.release.conf.json
+            args: --target aarch64-pc-windows-msvc --config src-tauri/tauri.windows.release.conf.json --config src-tauri/tauri.windows.arm64.conf.json
 
     steps:
       - name: Check out source

@@ -15,8 +15,8 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "tauri:build:mac": "tauri build --config src-tauri/tauri.macos.conf.json --bundles app,dmg",
-    "tauri:build:windows": "tauri build --config src-tauri/tauri.windows.conf.json --target x86_64-pc-windows-msvc",
-    "tauri:build:windows:arm64": "tauri build --config src-tauri/tauri.windows.conf.json --target aarch64-pc-windows-msvc"
+    "tauri:build:windows": "tauri build --config src-tauri/tauri.windows.conf.json --config src-tauri/tauri.windows.x64.conf.json --target x86_64-pc-windows-msvc",
+    "tauri:build:windows:arm64": "tauri build --config src-tauri/tauri.windows.conf.json --config src-tauri/tauri.windows.arm64.conf.json --target aarch64-pc-windows-msvc"
   },
   "dependencies": {
     "@fontsource-variable/ibm-plex-sans": "^5.3.0",

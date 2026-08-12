@@ -135,6 +135,8 @@ An unsigned build can run locally, but Windows may show an Unknown Publisher or 
 
 `.github/workflows/windows-release.yml` uses a two-architecture matrix. The x64 job runs on `windows-latest`; the ARM64 job runs natively on `windows-11-arm`. Each installs the matching pinned Rust target, performs all source gates, builds unsigned NSIS/MSI bundles, runs the clean install/launch/uninstall smoke test on the matching CPU architecture, and uploads separate executable, installer, and checksum artifacts for 14 days.
 
+The NSIS packages also include architecture-specific pre-install hooks. The x64 package refuses non-AMD64 Windows and points Windows on ARM users to ARM64; the ARM64 package refuses non-ARM64 Windows and points Intel/AMD users to x64. This prevents the x86 NSIS bootstrap from installing an application binary the host CPU cannot launch.
+
 The workflow is a verification pipeline, not a public release publisher. Authenticode release signing should be added only after a certificate and protected release environment exist. The signing job must retain the same verification script and must not expose certificate secrets to pull requests.
 
 ## Cross-build evidence from the Mac development host
