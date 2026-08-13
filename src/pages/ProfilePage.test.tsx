@@ -15,6 +15,7 @@ const profile: ProfileData = {
   identity: { name: "CaveBuilder", uuid: "12345678-1234-1234-1234-1234567890ab", source: "Prism Launcher", active: true },
   identities: [{ name: "CaveBuilder", uuid: "12345678-1234-1234-1234-1234567890ab", source: "Prism Launcher", active: true }],
   currentSkin: null,
+  avatar: null,
   previousSkins: [],
   summary: {
     totalPlaytimeMinutes: 4_620,
@@ -27,6 +28,7 @@ const profile: ProfileData = {
     missingWorlds: 1,
     backupCount: 2,
     statisticsWorlds: 1,
+    trackedStatistics: 1,
   },
   randomStats: [{ id: "minecraft:jump", label: "Jumps", value: 882, unit: "count", sourceWorlds: 1 }],
   statisticSections: [{ id: "general", label: "General", items: [{ id: "minecraft:jump", label: "Jumps", value: 882, unit: "count", sourceWorlds: 1 }] }],
@@ -54,6 +56,8 @@ describe("Profile page", () => {
     expect(html).toContain("1.21.8");
     expect(html).toContain("Jumps");
     expect(html).toContain("Share on social");
+    expect(html).toContain("Refresh local data");
+    expect(html).toContain("Worlds &amp; backups");
   });
 
   it("does not claim a missing save was definitely deleted", () => {
@@ -61,5 +65,16 @@ describe("Profile page", () => {
     expect(html).toContain("Save not found");
     expect(html).toContain("deleted, moved, renamed, or outside approved locations");
     expect(html).not.toContain("Deleted world");
+  });
+
+  it("uses a locally cached avatar when a full skin texture is unavailable", () => {
+    const html = renderProfile({
+      ...profile,
+      avatar: { dataUrl: "data:image/png;base64,cGZw", source: "Official Launcher" },
+    });
+
+    expect(html).toContain("Player avatar");
+    expect(html).toContain("data:image/png;base64,cGZw");
+    expect(html).toContain("Full skin not found");
   });
 });

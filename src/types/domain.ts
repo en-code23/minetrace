@@ -212,7 +212,7 @@ export interface ScanProgress {
 }
 
 export type StatisticUnit = "count" | "ticks" | "centimeters" | "tenths";
-export type StatisticsBasis = "uuidMatched" | "singleLocalPlayer" | "none";
+export type StatisticsBasis = "uuidMatched" | "inferredLocalPlayer" | "singleLocalPlayer" | "none";
 export type WorldAvailability = "available" | "missing" | "backupOnly";
 
 export interface ProfileIdentity {
@@ -229,6 +229,11 @@ export interface SkinAsset {
   source: string;
   width: number;
   height: number;
+}
+
+export interface ProfileAvatar {
+  dataUrl: string;
+  source: string;
 }
 
 export interface ProfileStatistic {
@@ -282,6 +287,7 @@ export interface ProfileData {
   identity: ProfileIdentity | null;
   identities: ProfileIdentity[];
   currentSkin: SkinAsset | null;
+  avatar: ProfileAvatar | null;
   previousSkins: SkinAsset[];
   summary: {
     totalPlaytimeMinutes: number;
@@ -294,6 +300,7 @@ export interface ProfileData {
     missingWorlds: number;
     backupCount: number;
     statisticsWorlds: number;
+    trackedStatistics: number;
   };
   randomStats: ProfileStatistic[];
   statisticSections: ProfileStatisticSection[];

@@ -3,12 +3,14 @@ import {
   Archive,
   BarChart3,
   Clock3,
+  FolderSearch,
   Gamepad2,
   HardDrive,
   Image as ImageIcon,
   Layers3,
   PackageOpen,
   RefreshCw,
+  Search,
   Share2,
   ShieldQuestion,
   Sparkles,
@@ -25,7 +27,8 @@ import { formatDuration, formatRelativeDate, pluralize } from "../lib/format";
 import { getProfile } from "../lib/runtime";
 import type { ProfileData, ProfileStatistic, ProfileWorld, WorldAvailability } from "../types/domain";
 
-type ProfileTab = "overview" | "statistics" | "clients";
+type ProfileTab = "overview" | "statistics" | "worlds" | "clients";
+type WorldFilter = "all" | WorldAvailability;
 
 export function ProfilePage() {
   const [tab, setTab] = useState<ProfileTab>("overview");
@@ -55,7 +58,10 @@ export function ProfilePage() {
       <PageHeader
         eyebrow="Player dossier · Local files"
         title="Profile"
-        actions={<Button variant="primary" leadingIcon={<Share2 aria-hidden="true" />} onClick={() => setSharing(true)}>Share on social</Button>}
+        actions={<div className="profile-header-actions">
+          <Button leadingIcon={<RefreshCw aria-hidden="true" />} loading={profile.isFetching} onClick={() => void profile.refetch()}>Refresh local data</Button>
+          <Button variant="primary" leadingIcon={<Share2 aria-hidden="true" />} onClick={() => setSharing(true)}>Share on social</Button>
+        </div>}
       />
 
       <ProfileHero profile={data} />
@@ -63,11 +69,13 @@ export function ProfilePage() {
       <div className="profile-tabs" role="tablist" aria-label="Profile sections">
         <TabButton id="overview" current={tab} onChange={setTab} icon={Sparkles} label="Overview" />
         <TabButton id="statistics" current={tab} onChange={setTab} icon={BarChart3} label="Statistics" />
+        <TabButton id="worlds" current={tab} onChange={setTab} icon={FolderSearch} label="Worlds & backups" />
         <TabButton id="clients" current={tab} onChange={setTab} icon={Layers3} label="Clients & launchers" />
       </div>
 
       {tab === "overview" && <OverviewTab profile={data} />}
       {tab === "statistics" && <StatisticsTab profile={data} />}
+      {tab === "worlds" && <WorldsTab profile={data} />}
       {tab === "clients" && <ClientsTab profile={data} />}
 
       {sharing && <ShareProfileDialog profile={data} onClose={() => setSharing(false)} />}
@@ -80,11 +88,17 @@ function ProfileHero({ profile }: { profile: ProfileData }) {
   return (
     <section className="profile-hero">
       <div className="profile-hero__figure">
-        <SkinPreview dataUrl={profile.currentSkin?.dataUrl ?? null} mode="body" label={identity ? `${identity.name}'s current skin` : "No locally cached skin"} />
-        {!profile.currentSkin && <span className="profile-hero__no-skin"><ImageIcon aria-hidden="true" />Skin not cached</span>}
+        <SkinPreview dataUrl={profile.currentSkin?.dataUrl ?? null} mode="body" label={identity ? `${identity.name}'s most recent local skin` : "No locally cached full skin"} />
+        {!profile.currentSkin && <span className="profile-hero__no-skin"><ImageIcon aria-hidden="true" />Full skin not found</span>}
       </div>
       <div className="profile-hero__identity">
-        <span className="profile-avatar"><SkinPreview dataUrl={profile.currentSkin?.dataUrl ?? null} mode="head" label="Player head" /></span>
+        <span className="profile-avatar">
+          {profile.currentSkin
+            ? <SkinPreview dataUrl={profile.currentSkin.dataUrl} mode="head" label="Player head" />
+            : profile.avatar
+              ? <img src={profile.avatar.dataUrl} alt="Player avatar" />
+              : <UserRound aria-hidden="true" />}
+        </span>
         <div>
           <p>{identity?.active ? "Active local account" : identity ? "Local account" : "Local archive"}</p>
           <h2>{identity?.name ?? "Minecraft player"}</h2>
@@ -138,14 +152,14 @@ function OverviewTab({ profile }: { profile: ProfileData }) {
         </section>
 
         <section className="profile-section" aria-labelledby="skins-title">
-          <header><div><p className="eyebrow">Attributable local cache</p><h2 id="skins-title">Previous skins</h2></div><span>{profile.previousSkins.length.toLocaleString()} retained</span></header>
+          <header><div><p className="eyebrow">Launcher skin cache</p><h2 id="skins-title">Earlier local skins</h2></div><span>{profile.previousSkins.length.toLocaleString()} retained</span></header>
           {profile.previousSkins.length > 0 ? (
             <div className="skin-history">
               {profile.previousSkins.map((skin, index) => (
                 <article key={skin.id}><SkinPreview dataUrl={skin.dataUrl} mode="head" label={`Previous skin ${index + 1}`} /><span><strong>Skin {index + 1}</strong><small>{skin.observedAt ? formatRelativeDate(skin.observedAt) : "Date unavailable"}</small></span></article>
               ))}
             </div>
-          ) : <div className="profile-inline-empty"><ImageIcon aria-hidden="true" /><span><strong>No previous skin cached</strong><small>Only textures tied to a detected local account can appear here.</small></span></div>}
+          ) : <div className="profile-inline-empty"><ImageIcon aria-hidden="true" /><span><strong>No earlier skin retained</strong><small>MineTrace only shows full textures still present in a local launcher cache.</small></span></div>}
 
           <div className="backup-summary">
             <PackageOpen aria-hidden="true" /><span><strong>{pluralize(profile.summary.backupCount, "backup")}</strong><small>{profile.summary.backupCount > 0 ? "ZIP archives found in approved instance backup folders" : "No world backup archives found"}</small></span>
@@ -157,25 +171,92 @@ function OverviewTab({ profile }: { profile: ProfileData }) {
 }
 
 function StatisticsTab({ profile }: { profile: ProfileData }) {
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleSections = profile.statisticSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((stat) => stat.label.toLowerCase().includes(normalizedQuery)),
+    }))
+    .filter((section) => section.items.length > 0);
   return (
     <div className="profile-statistics" role="tabpanel">
       <section className="profile-statistics__intro">
-        <div><p className="eyebrow">Statistics basis</p><h2>{basisLabel(profile.statisticsBasis)}</h2><p>Totals combine {pluralize(profile.summary.statisticsWorlds, "local world")} with an attributable player statistics file.</p></div>
-        <span><HardDrive aria-hidden="true" /> Local save data only</span>
+        <div><p className="eyebrow">Statistics basis</p><h2>{basisLabel(profile.statisticsBasis)}</h2><p>Totals combine {pluralize(profile.summary.statisticsWorlds, "local world")} with a selected local player statistics file.</p></div>
+        <div className="profile-statistics__coverage">
+          <span><strong>{profile.summary.statisticsWorlds.toLocaleString()}</strong><small>Worlds matched</small></span>
+          <span><strong>{profile.summary.trackedStatistics.toLocaleString()}</strong><small>Measures tracked</small></span>
+          <HardDrive aria-label="Local save data only" />
+        </div>
       </section>
-      {profile.statisticSections.length > 0 ? profile.statisticSections.map((section) => (
+      {profile.statisticSections.length > 0 && <label className="profile-search">
+        <Search aria-hidden="true" />
+        <span className="sr-only">Search in-game statistics</span>
+        <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find a block, item, mob, or measure" />
+        <kbd>{visibleSections.reduce((total, section) => total + section.items.length, 0).toLocaleString()} found</kbd>
+      </label>}
+      {visibleSections.length > 0 ? visibleSections.map((section) => (
         <section className="profile-stat-group" key={section.id}>
           <header><h2>{section.label}</h2><span>{pluralize(section.items.length, "measure")}</span></header>
           <div className="profile-stat-table">
             {section.items.map((stat, index) => <StatRow stat={stat} index={index} key={stat.id} />)}
           </div>
         </section>
-      )) : (
+      )) : profile.statisticSections.length === 0 ? (
         <EmptyState icon={BarChart3} title="No attributable in-game statistics" description="Minecraft stores these per local world and player. Multiplayer servers usually keep them server-side." />
-      )}
+      ) : <EmptyState icon={Search} title="No statistics match this search" description="Try a block, item, mob, or broader term." />}
       <ul className="profile-limitations">{profile.limitations.map((item) => <li key={item}>{item}</li>)}</ul>
     </div>
   );
+}
+
+function WorldsTab({ profile }: { profile: ProfileData }) {
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<WorldFilter>("all");
+  const normalizedQuery = query.trim().toLowerCase();
+  const matching = profile.worlds.filter((world) =>
+    (filter === "all" || world.availability === filter)
+    && [world.name, world.folderName, world.instance, world.launcher]
+      .filter(Boolean)
+      .some((value) => value!.toLowerCase().includes(normalizedQuery)),
+  );
+  const visible = matching.slice(0, 100);
+  return (
+    <div className="profile-worlds" role="tabpanel">
+      <section className="profile-world-summary" aria-label="World library summary">
+        <WorldSummaryFact label="Save available" value={profile.summary.availableWorlds} tone="available" />
+        <WorldSummaryFact label="Save not found" value={profile.summary.missingWorlds} tone="missing" />
+        <WorldSummaryFact label="Backups found" value={profile.summary.backupCount} tone="backupOnly" />
+        <WorldSummaryFact label="Stats matched" value={profile.summary.statisticsWorlds} tone="stats" />
+      </section>
+
+      <section className="profile-section">
+        <header className="profile-world-controls">
+          <label className="profile-search">
+            <Search aria-hidden="true" />
+            <span className="sr-only">Search worlds and backups</span>
+            <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find a world, instance, or launcher" />
+          </label>
+          <div className="profile-world-filters" aria-label="Filter worlds">
+            {(["all", "available", "missing", "backupOnly"] as const).map((value) => (
+              <button type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} key={value}>
+                {value === "all" ? "All" : availabilityLabel(value)}
+              </button>
+            ))}
+          </div>
+        </header>
+        <div className="profile-world-list">
+          {visible.map((world) => <WorldRow world={world} key={world.id} />)}
+          {matching.length === 0 && <div className="profile-inline-empty"><FolderSearch aria-hidden="true" /><span><strong>No worlds match these filters</strong><small>Change the availability filter or search text.</small></span></div>}
+        </div>
+        {matching.length > visible.length && <p className="profile-caveat">Showing the first {visible.length.toLocaleString()} of {matching.length.toLocaleString()} matches. Refine the search to find a specific world.</p>}
+      </section>
+    </div>
+  );
+}
+
+function WorldSummaryFact({ label, value, tone }: { label: string; value: number; tone: "available" | "missing" | "backupOnly" | "stats" }) {
+  return <div className={`profile-world-summary__fact profile-world-summary__fact--${tone}`}><span /><strong>{value.toLocaleString()}</strong><small>{label}</small></div>;
 }
 
 function ClientsTab({ profile }: { profile: ProfileData }) {
@@ -250,6 +331,7 @@ function availabilityLabel(value: WorldAvailability): string {
 
 function basisLabel(value: ProfileData["statisticsBasis"]): string {
   if (value === "uuidMatched") return "Matched to this player UUID";
+  if (value === "inferredLocalPlayer") return "Most frequent local player file";
   if (value === "singleLocalPlayer") return "Single local player file";
   return "No attributable statistics";
 }

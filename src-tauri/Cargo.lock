@@ -1907,8 +1907,9 @@ checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
 
 [[package]]
 name = "minetrace"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
+ "base64 0.22.1",
  "blake3",
  "chrono",
  "flate2",

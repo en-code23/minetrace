@@ -5,6 +5,7 @@ use std::{
     time::UNIX_EPOCH,
 };
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use serde::Serialize;
@@ -39,6 +40,7 @@ pub struct ProfileData {
     pub identity: Option<ProfileIdentity>,
     pub identities: Vec<ProfileIdentity>,
     pub current_skin: Option<SkinAsset>,
+    pub avatar: Option<ProfileAvatar>,
     pub previous_skins: Vec<SkinAsset>,
     pub summary: ProfileSummary,
     pub random_stats: Vec<ProfileStatistic>,
@@ -72,6 +74,13 @@ pub struct SkinAsset {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ProfileAvatar {
+    pub data_url: String,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProfileSummary {
     pub total_playtime_minutes: u64,
     pub sessions: u64,
@@ -83,6 +92,7 @@ pub struct ProfileSummary {
     pub missing_worlds: u64,
     pub backup_count: u64,
     pub statistics_worlds: u64,
+    pub tracked_statistics: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -116,6 +126,7 @@ pub enum StatisticUnit {
 #[serde(rename_all = "camelCase")]
 pub enum StatisticsBasis {
     UuidMatched,
+    InferredLocalPlayer,
     SingleLocalPlayer,
     None,
 }
@@ -173,6 +184,8 @@ struct AccountIdentity {
     source: String,
     active: bool,
     skin_hashes: Vec<String>,
+    embedded_skins: Vec<String>,
+    avatar_data_url: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -205,7 +218,9 @@ impl ProfileService {
     ) -> Result<ProfileData, BackendError> {
         let installations = discovery.discover()?;
         let game_roots = collect_game_roots(&installations);
-        let account_identities = collect_identities(&installations, &game_roots);
+        let mut account_identities = collect_identities(&installations, &game_roots);
+        let stats_uuid_counts = collect_stats_uuid_counts(&game_roots);
+        prioritize_identities(&mut account_identities, &stats_uuid_counts);
         let identities = account_identities
             .iter()
             .map(|identity| ProfileIdentity {
@@ -216,18 +231,23 @@ impl ProfileService {
             })
             .collect::<Vec<_>>();
         let identity = identities.first().cloned();
-        let primary_uuid = account_identities
-            .first()
-            .and_then(|candidate| candidate.uuid.as_deref());
+        let (primary_stats_uuid, primary_statistics_basis) =
+            select_primary_stats_uuid(&account_identities, &stats_uuid_counts);
 
         let (current_skin, previous_skins) =
             collect_skins(&installations, &game_roots, &account_identities);
+        let avatar = collect_avatar(&account_identities);
         let dashboard = DashboardService.load(database)?;
         let archive_worlds = ExplorerService.world_collection(database)?.items;
         let launchers = launcher_usage(database)?;
         let backups = collect_backups(&game_roots);
-        let (worlds, stats, statistics_basis, statistics_worlds) =
-            collect_worlds(&game_roots, &archive_worlds, &backups, primary_uuid);
+        let (worlds, stats, statistics_basis, statistics_worlds) = collect_worlds(
+            &game_roots,
+            &archive_worlds,
+            &backups,
+            primary_stats_uuid.as_deref(),
+            primary_statistics_basis,
+        );
         let statistic_sections = build_statistic_sections(&stats);
         let random_stats = choose_random_stats(
             statistic_sections
@@ -249,7 +269,7 @@ impl ProfileService {
         let mut limitations = vec![
             "In-game statistics come from local single-player world files; multiplayer servers usually keep their statistics server-side.".to_owned(),
             "A missing save may have been deleted, moved, renamed, or excluded from the approved scan locations.".to_owned(),
-            "Skin history includes only textures tied to a detected account and still present in a local launcher cache.".to_owned(),
+            "Skin history includes full textures still present in a local launcher cache or official skin library; the newest saved texture may not be the skin currently equipped online.".to_owned(),
         ];
         if identity.is_none() {
             limitations.push(
@@ -259,7 +279,13 @@ impl ProfileService {
         }
         if current_skin.is_none() {
             limitations.push(
-                "The current account skin was not available in an attributable local cache."
+                "A full skin texture was not available in the approved local launcher caches."
+                    .to_owned(),
+            );
+        }
+        if statistics_basis == StatisticsBasis::InferredLocalPlayer {
+            limitations.push(
+                "No launcher identity matched the statistics UUID, so MineTrace selected the uniquely most frequent local player file across detected worlds."
                     .to_owned(),
             );
         }
@@ -269,6 +295,7 @@ impl ProfileService {
             identity,
             identities,
             current_skin,
+            avatar,
             previous_skins,
             summary: ProfileSummary {
                 total_playtime_minutes: dashboard.totals.playtime_minutes,
@@ -281,6 +308,10 @@ impl ProfileService {
                 missing_worlds,
                 backup_count: backups.len() as u64,
                 statistics_worlds,
+                tracked_statistics: statistic_sections
+                    .iter()
+                    .map(|section| section.items.len() as u64)
+                    .sum(),
             },
             random_stats,
             statistic_sections,
@@ -475,6 +506,14 @@ fn collect_identities(
             root.launcher.clone(),
         );
         files.insert(root.path.join("accounts.json"), root.launcher.clone());
+        files.insert(
+            root.path.join("usercache.json"),
+            "Minecraft user cache".to_owned(),
+        );
+        files.insert(
+            root.path.join("usernamecache.json"),
+            "Minecraft username cache".to_owned(),
+        );
     }
 
     let mut identities = Vec::new();
@@ -503,6 +542,16 @@ fn collect_identities(
                         current.skin_hashes.push(hash.clone());
                     }
                 }
+                for skin in &identity.embedded_skins {
+                    if !current.embedded_skins.contains(skin) {
+                        current.embedded_skins.push(skin.clone());
+                    }
+                }
+                if current.avatar_data_url.is_none() {
+                    current
+                        .avatar_data_url
+                        .clone_from(&identity.avatar_data_url);
+                }
             })
             .or_insert(identity);
     }
@@ -530,6 +579,7 @@ fn extract_identities(value: &Value, source: &str) -> Vec<AccountIdentity> {
                 .or_else(|| account.get("profile"))
                 && let Some(identity) = identity_from_profile(
                     profile,
+                    account,
                     source,
                     active_local_id.as_deref() == Some(local_id.as_str()),
                 )
@@ -547,16 +597,65 @@ fn extract_identities(value: &Value, source: &str) -> Vec<AccountIdentity> {
             if let Some(profile) = account
                 .get("profile")
                 .or_else(|| account.get("minecraftProfile"))
-                && let Some(identity) = identity_from_profile(profile, source, active)
+                && let Some(identity) = identity_from_profile(profile, account, source, active)
             {
                 identities.push(identity);
             }
         }
     }
+
+    if let Some(entries) = value.as_array() {
+        for entry in entries {
+            let name = entry.get("name").and_then(Value::as_str);
+            let uuid = entry
+                .get("uuid")
+                .or_else(|| entry.get("id"))
+                .and_then(Value::as_str)
+                .and_then(normalize_uuid);
+            if let (Some(name), Some(uuid)) = (name, uuid) {
+                identities.push(AccountIdentity {
+                    name: name.to_owned(),
+                    uuid: Some(uuid),
+                    source: source.to_owned(),
+                    active: false,
+                    skin_hashes: Vec::new(),
+                    embedded_skins: Vec::new(),
+                    avatar_data_url: None,
+                });
+            }
+        }
+    }
+
+    if value.get("accounts").is_none()
+        && let Some(entries) = value.as_object()
+    {
+        for (uuid, name) in entries {
+            let Some(uuid) = normalize_uuid(uuid) else {
+                continue;
+            };
+            let Some(name) = name.as_str().filter(|name| !name.trim().is_empty()) else {
+                continue;
+            };
+            identities.push(AccountIdentity {
+                name: name.to_owned(),
+                uuid: Some(uuid),
+                source: source.to_owned(),
+                active: false,
+                skin_hashes: Vec::new(),
+                embedded_skins: Vec::new(),
+                avatar_data_url: None,
+            });
+        }
+    }
     identities
 }
 
-fn identity_from_profile(profile: &Value, source: &str, active: bool) -> Option<AccountIdentity> {
+fn identity_from_profile(
+    profile: &Value,
+    account: &Value,
+    source: &str,
+    active: bool,
+) -> Option<AccountIdentity> {
     let name = profile.get("name")?.as_str()?.trim();
     if name.is_empty() {
         return None;
@@ -566,15 +665,14 @@ fn identity_from_profile(profile: &Value, source: &str, active: bool) -> Option<
         .and_then(Value::as_str)
         .and_then(normalize_uuid);
     let mut skin_hashes = Vec::new();
+    let mut embedded_skins = Vec::new();
     if let Some(skins) = profile.get("skins").and_then(Value::as_array) {
         for skin in skins {
-            if let Some(url) = skin.get("url").and_then(Value::as_str)
-                && let Some(hash) = texture_hash(url)
-                && !skin_hashes.contains(&hash)
-            {
-                skin_hashes.push(hash);
-            }
+            collect_skin_reference(skin, &mut skin_hashes, &mut embedded_skins);
         }
+    }
+    if let Some(skin) = profile.get("skin") {
+        collect_skin_reference(skin, &mut skin_hashes, &mut embedded_skins);
     }
     Some(AccountIdentity {
         name: name.to_owned(),
@@ -582,7 +680,37 @@ fn identity_from_profile(profile: &Value, source: &str, active: bool) -> Option<
         source: source.to_owned(),
         active,
         skin_hashes,
+        embedded_skins,
+        avatar_data_url: account
+            .get("avatar")
+            .and_then(Value::as_str)
+            .and_then(valid_png_data_url),
     })
+}
+
+fn collect_skin_reference(
+    skin: &Value,
+    skin_hashes: &mut Vec<String>,
+    embedded_skins: &mut Vec<String>,
+) {
+    if let Some(url) = skin.get("url").and_then(Value::as_str)
+        && let Some(hash) = texture_hash(url)
+        && !skin_hashes.contains(&hash)
+    {
+        skin_hashes.push(hash);
+    }
+    if let Some(data) = skin.get("data").and_then(Value::as_str) {
+        let data_url = if data.starts_with("data:image/png;base64,") {
+            data.to_owned()
+        } else {
+            format!("data:image/png;base64,{data}")
+        };
+        if let Some(data_url) = valid_skin_data_url(&data_url)
+            && !embedded_skins.contains(&data_url)
+        {
+            embedded_skins.push(data_url);
+        }
+    }
 }
 
 fn collect_skins(
@@ -601,21 +729,100 @@ fn collect_skins(
     let mut skins = Vec::new();
     let mut seen = BTreeSet::new();
     for identity in identities {
-        for hash in &identity.skin_hashes {
-            if !seen.insert(hash.clone()) {
-                continue;
+        for data_url in &identity.embedded_skins {
+            if let Some(asset) = skin_asset_from_data_url(data_url, None, &identity.source)
+                && seen.insert(asset.id.clone())
+            {
+                skins.push(asset);
             }
+        }
+        for hash in &identity.skin_hashes {
             for root in &roots {
                 if let Some(asset) = find_skin(root, hash, &identity.source) {
-                    skins.push(asset);
+                    if seen.insert(asset.id.clone()) {
+                        skins.push(asset);
+                    }
                     break;
                 }
             }
         }
     }
+
+    let mut library_skins = roots
+        .iter()
+        .flat_map(|root| collect_custom_skin_library(root))
+        .collect::<Vec<_>>();
+    library_skins.sort_by(|left, right| right.observed_at.cmp(&left.observed_at));
+    for asset in library_skins {
+        if seen.insert(asset.id.clone()) {
+            skins.push(asset);
+        }
+    }
     let current = skins.first().cloned();
     let previous = skins.into_iter().skip(1).take(12).collect();
     (current, previous)
+}
+
+fn collect_avatar(identities: &[AccountIdentity]) -> Option<ProfileAvatar> {
+    identities.iter().find_map(|identity| {
+        identity
+            .avatar_data_url
+            .as_ref()
+            .map(|data_url| ProfileAvatar {
+                data_url: data_url.clone(),
+                source: identity.source.clone(),
+            })
+    })
+}
+
+fn collect_custom_skin_library(root: &Path) -> Vec<SkinAsset> {
+    let Some(text) = read_text_bounded(
+        &root.join("launcher_custom_skins.json"),
+        MAX_ACCOUNT_FILE_BYTES,
+    ) else {
+        return Vec::new();
+    };
+    let Ok(value) = serde_json::from_str::<Value>(&text) else {
+        return Vec::new();
+    };
+    let Some(entries) = value.get("customSkins").and_then(Value::as_object) else {
+        return Vec::new();
+    };
+
+    let mut skins = entries
+        .values()
+        .filter_map(|entry| {
+            let data_url = entry.get("skinImage").and_then(Value::as_str)?;
+            let observed_at = entry
+                .get("updated")
+                .or_else(|| entry.get("created"))
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned);
+            skin_asset_from_data_url(data_url, observed_at, "Official Launcher skin library")
+        })
+        .collect::<Vec<_>>();
+    skins.sort_by(|left, right| right.observed_at.cmp(&left.observed_at));
+    skins.truncate(32);
+    skins
+}
+
+fn skin_asset_from_data_url(
+    data_url: &str,
+    observed_at: Option<String>,
+    source: &str,
+) -> Option<SkinAsset> {
+    let data_url = valid_skin_data_url(data_url)?;
+    let bytes = decode_png_data_url(&data_url)?;
+    let (width, height) = png_dimensions(&bytes)?;
+    let digest = blake3::hash(&bytes).to_hex().to_string();
+    Some(SkinAsset {
+        id: stable_id("skin", &[&digest]),
+        data_url,
+        observed_at,
+        source: source.to_owned(),
+        width,
+        height,
+    })
 }
 
 fn find_skin(root: &Path, hash: &str, source: &str) -> Option<SkinAsset> {
@@ -644,7 +851,7 @@ fn find_skin(root: &Path, hash: &str, source: &str) -> Option<SkinAsset> {
             .and_then(|metadata| metadata.modified().ok())
             .and_then(system_time_rfc3339);
         return Some(SkinAsset {
-            id: stable_id("skin", &[hash]),
+            id: stable_id("skin", &[&blake3::hash(&bytes).to_hex()]),
             data_url: format!("data:image/png;base64,{}", base64_encode(&bytes)),
             observed_at,
             source: source.to_owned(),
@@ -696,6 +903,7 @@ fn collect_worlds(
     archive_worlds: &[WorldSummary],
     backups: &[BackupCandidate],
     primary_uuid: Option<&str>,
+    primary_basis: StatisticsBasis,
 ) -> (Vec<ProfileWorld>, StatMap, StatisticsBasis, u64) {
     let mut worlds = Vec::new();
     let mut stats = StatMap::new();
@@ -742,7 +950,7 @@ fn collect_worlds(
                 })
                 .sum();
             let (world_stats, stats_basis) = if stats_files < MAX_STATS_FILES {
-                load_world_stats(&entry.path(), primary_uuid)
+                load_world_stats(&entry.path(), primary_uuid, primary_basis)
             } else {
                 (None, StatisticsBasis::None)
             };
@@ -842,22 +1050,9 @@ fn availability_rank(value: WorldAvailability) -> u8 {
 fn load_world_stats(
     world_path: &Path,
     primary_uuid: Option<&str>,
+    primary_basis: StatisticsBasis,
 ) -> (Option<StatMap>, StatisticsBasis) {
-    let stats_dir = world_path.join("stats");
-    let Ok(entries) = fs::read_dir(stats_dir) else {
-        return (None, StatisticsBasis::None);
-    };
-    let mut candidates = entries
-        .take(64)
-        .flatten()
-        .filter_map(|entry| {
-            let path = entry.path();
-            let file_type = entry.file_type().ok()?;
-            (file_type.is_file()
-                && path.extension().and_then(|value| value.to_str()) == Some("json"))
-            .then_some(path)
-        })
-        .collect::<Vec<_>>();
+    let mut candidates = collect_player_json_files(world_path, "stats");
     if candidates.is_empty() {
         return (None, StatisticsBasis::None);
     }
@@ -873,8 +1068,8 @@ fn load_world_stats(
         })
     });
     let (selected, basis) = if let Some(exact) = exact {
-        (exact, StatisticsBasis::UuidMatched)
-    } else if candidates.len() == 1 {
+        (exact, primary_basis)
+    } else if primary_uuid.is_none() && candidates.len() == 1 {
         (&candidates[0], StatisticsBasis::SingleLocalPlayer)
     } else {
         return (None, StatisticsBasis::None);
@@ -888,33 +1083,199 @@ fn load_world_stats(
     (Some(parsed), basis)
 }
 
-fn parse_stats(text: &str) -> Option<StatMap> {
-    let value = serde_json::from_str::<Value>(text).ok()?;
-    let categories = value.get("stats")?.as_object()?;
-    let mut stats = StatMap::new();
-    for (category, entries) in categories {
-        let Some(entries) = entries.as_object() else {
+fn collect_stats_uuid_counts(game_roots: &[GameRoot]) -> BTreeMap<String, u64> {
+    let mut counts = BTreeMap::<String, u64>::new();
+    let mut inspected_worlds = 0usize;
+    'roots: for root in game_roots {
+        let Ok(worlds) = fs::read_dir(root.path.join("saves")) else {
             continue;
         };
-        for (key, value) in entries {
-            let amount = value
-                .as_u64()
-                .or_else(|| value.as_i64().and_then(|value| u64::try_from(value).ok()))
-                .unwrap_or(0)
-                .min(MAX_SAFE_INTEGER);
-            if amount == 0 {
+        for world in worlds.take(MAX_DIRECTORY_ENTRIES).flatten() {
+            if inspected_worlds >= MAX_WORLDS {
+                break 'roots;
+            }
+            let Ok(file_type) = world.file_type() else {
+                continue;
+            };
+            if !file_type.is_dir() || file_type.is_symlink() {
                 continue;
             }
-            stats.insert(
-                (category.clone(), key.clone()),
-                StatValue {
-                    value: amount,
-                    worlds: BTreeSet::new(),
-                },
-            );
+            inspected_worlds += 1;
+            for path in collect_player_json_files(&world.path(), "stats") {
+                let Some(uuid) = path
+                    .file_stem()
+                    .and_then(|value| value.to_str())
+                    .and_then(normalize_uuid)
+                else {
+                    continue;
+                };
+                *counts.entry(uuid).or_default() += 1;
+            }
         }
     }
-    Some(stats)
+    counts
+}
+
+fn prioritize_identities(
+    identities: &mut [AccountIdentity],
+    stats_uuid_counts: &BTreeMap<String, u64>,
+) {
+    identities.sort_by(|left, right| {
+        let left_count = left
+            .uuid
+            .as_ref()
+            .and_then(|uuid| stats_uuid_counts.get(uuid))
+            .copied()
+            .unwrap_or(0);
+        let right_count = right
+            .uuid
+            .as_ref()
+            .and_then(|uuid| stats_uuid_counts.get(uuid))
+            .copied()
+            .unwrap_or(0);
+        right_count
+            .cmp(&left_count)
+            .then_with(|| right.active.cmp(&left.active))
+            .then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase()))
+    });
+}
+
+fn select_primary_stats_uuid(
+    identities: &[AccountIdentity],
+    stats_uuid_counts: &BTreeMap<String, u64>,
+) -> (Option<String>, StatisticsBasis) {
+    if let Some(uuid) = identities.iter().find_map(|identity| {
+        let uuid = identity.uuid.as_ref()?;
+        stats_uuid_counts.contains_key(uuid).then(|| uuid.clone())
+    }) {
+        return (Some(uuid), StatisticsBasis::UuidMatched);
+    }
+
+    let mut ranked = stats_uuid_counts.iter().collect::<Vec<_>>();
+    ranked.sort_by(|(left_uuid, left_count), (right_uuid, right_count)| {
+        right_count
+            .cmp(left_count)
+            .then_with(|| left_uuid.cmp(right_uuid))
+    });
+    let Some((uuid, count)) = ranked.first() else {
+        return (None, StatisticsBasis::None);
+    };
+    let is_unique_leader = ranked
+        .get(1)
+        .is_none_or(|(_, next_count)| next_count < count);
+    if is_unique_leader {
+        (Some((*uuid).clone()), StatisticsBasis::InferredLocalPlayer)
+    } else {
+        (None, StatisticsBasis::None)
+    }
+}
+
+fn collect_player_json_files(world_path: &Path, directory_name: &str) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    for directory in [
+        world_path.join(directory_name),
+        world_path.join("players").join(directory_name),
+    ] {
+        let Ok(entries) = fs::read_dir(directory) else {
+            continue;
+        };
+        candidates.extend(entries.take(64).flatten().filter_map(|entry| {
+            let path = entry.path();
+            let file_type = entry.file_type().ok()?;
+            (file_type.is_file()
+                && path.extension().and_then(|value| value.to_str()) == Some("json"))
+            .then_some(path)
+        }));
+    }
+    candidates.sort();
+    candidates.dedup();
+    candidates
+}
+
+fn parse_stats(text: &str) -> Option<StatMap> {
+    let value = serde_json::from_str::<Value>(text).ok()?;
+    let mut stats = StatMap::new();
+    if let Some(categories) = value.get("stats").and_then(Value::as_object) {
+        for (category, entries) in categories {
+            let Some(entries) = entries.as_object() else {
+                continue;
+            };
+            for (key, value) in entries {
+                insert_stat_value(&mut stats, category, key, value);
+            }
+        }
+    } else if let Some(entries) = value.as_object() {
+        for (legacy_key, value) in entries {
+            let Some((category, key)) = legacy_stat_key(legacy_key) else {
+                continue;
+            };
+            insert_stat_value(&mut stats, category, &key, value);
+        }
+    }
+    (!stats.is_empty()).then_some(stats)
+}
+
+fn insert_stat_value(stats: &mut StatMap, category: &str, key: &str, value: &Value) {
+    let amount = value
+        .as_u64()
+        .or_else(|| value.as_i64().and_then(|value| u64::try_from(value).ok()))
+        .unwrap_or(0)
+        .min(MAX_SAFE_INTEGER);
+    if amount == 0 {
+        return;
+    }
+    stats.insert(
+        (category.to_owned(), key.to_owned()),
+        StatValue {
+            value: amount,
+            worlds: BTreeSet::new(),
+        },
+    );
+}
+
+fn legacy_stat_key(value: &str) -> Option<(&'static str, String)> {
+    let custom = match value {
+        "stat.playOneMinute" => Some("minecraft:play_time"),
+        "stat.deaths" => Some("minecraft:deaths"),
+        "stat.damageDealt" => Some("minecraft:damage_dealt"),
+        "stat.damageTaken" => Some("minecraft:damage_taken"),
+        "stat.mobKills" => Some("minecraft:mob_kills"),
+        "stat.playerKills" => Some("minecraft:player_kills"),
+        "stat.jump" => Some("minecraft:jump"),
+        "stat.walkOneCm" => Some("minecraft:walk_one_cm"),
+        "stat.sprintOneCm" => Some("minecraft:sprint_one_cm"),
+        "stat.crouchOneCm" => Some("minecraft:crouch_one_cm"),
+        "stat.swimOneCm" => Some("minecraft:swim_one_cm"),
+        "stat.flyOneCm" => Some("minecraft:fly_one_cm"),
+        "stat.boatOneCm" => Some("minecraft:boat_one_cm"),
+        "stat.minecartOneCm" => Some("minecraft:minecart_one_cm"),
+        "stat.fishCaught" => Some("minecraft:fish_caught"),
+        "stat.animalsBred" => Some("minecraft:animals_bred"),
+        _ => None,
+    };
+    if let Some(custom) = custom {
+        return Some(("minecraft:custom", custom.to_owned()));
+    }
+
+    for (prefix, category) in [
+        ("stat.mineBlock.", "minecraft:mined"),
+        ("stat.craftItem.", "minecraft:crafted"),
+        ("stat.useItem.", "minecraft:used"),
+        ("stat.killEntity.", "minecraft:killed"),
+    ] {
+        if let Some(identifier) = value.strip_prefix(prefix) {
+            return Some((category, legacy_identifier(identifier)));
+        }
+    }
+    None
+}
+
+fn legacy_identifier(value: &str) -> String {
+    let value = value
+        .strip_prefix("minecraft.")
+        .or_else(|| value.strip_prefix("Minecraft."))
+        .unwrap_or(value);
+    format!("minecraft:{}", value.replace('.', "_").to_ascii_lowercase())
 }
 
 fn merge_stats(target: &mut StatMap, source: StatMap, world: &str) {
@@ -1187,26 +1548,28 @@ fn png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
 }
 
 fn base64_encode(bytes: &[u8]) -> String {
-    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut output = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let first = chunk[0];
-        let second = chunk.get(1).copied().unwrap_or(0);
-        let third = chunk.get(2).copied().unwrap_or(0);
-        output.push(TABLE[(first >> 2) as usize] as char);
-        output.push(TABLE[(((first & 0x03) << 4) | (second >> 4)) as usize] as char);
-        output.push(if chunk.len() > 1 {
-            TABLE[(((second & 0x0f) << 2) | (third >> 6)) as usize] as char
-        } else {
-            '='
-        });
-        output.push(if chunk.len() > 2 {
-            TABLE[(third & 0x3f) as usize] as char
-        } else {
-            '='
-        });
+    BASE64_STANDARD.encode(bytes)
+}
+
+fn valid_skin_data_url(value: &str) -> Option<String> {
+    let bytes = decode_png_data_url(value)?;
+    let (width, height) = png_dimensions(&bytes)?;
+    (width == 64 && matches!(height, 32 | 64)).then(|| value.to_owned())
+}
+
+fn valid_png_data_url(value: &str) -> Option<String> {
+    let bytes = decode_png_data_url(value)?;
+    let (width, height) = png_dimensions(&bytes)?;
+    (width > 0 && height > 0 && width <= 512 && height <= 512).then(|| value.to_owned())
+}
+
+fn decode_png_data_url(value: &str) -> Option<Vec<u8>> {
+    let encoded = value.strip_prefix("data:image/png;base64,")?;
+    if encoded.len() > MAX_SKIN_BYTES as usize * 2 {
+        return None;
     }
-    output
+    let bytes = BASE64_STANDARD.decode(encoded).ok()?;
+    (bytes.len() <= MAX_SKIN_BYTES as usize).then_some(bytes)
 }
 
 fn modified_rfc3339(path: &Path) -> Option<String> {
@@ -1237,9 +1600,17 @@ mod tests {
     use tempfile::tempdir;
 
     use super::{
-        StatisticsBasis, base64_encode, display_uuid, humanize_identifier, load_world_stats,
-        normalize_uuid, parse_stats, png_dimensions,
+        GameRoot, StatisticsBasis, base64_encode, collect_custom_skin_library,
+        collect_stats_uuid_counts, display_uuid, extract_identities, humanize_identifier,
+        load_world_stats, normalize_uuid, parse_stats, png_dimensions, select_primary_stats_uuid,
     };
+
+    fn fake_skin_data_url() -> String {
+        let mut png = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR".to_vec();
+        png.extend_from_slice(&64u32.to_be_bytes());
+        png.extend_from_slice(&64u32.to_be_bytes());
+        format!("data:image/png;base64,{}", base64_encode(&png))
+    }
 
     #[test]
     fn uuid_helpers_normalize_launcher_formats() {
@@ -1268,6 +1639,28 @@ mod tests {
     }
 
     #[test]
+    fn legacy_statistics_are_mapped_to_current_categories() {
+        let parsed = parse_stats(
+            r#"{"stat.jump":42,"stat.walkOneCm":1200,"stat.mineBlock.minecraft.stone":9}"#,
+        )
+        .expect("legacy stats");
+        assert_eq!(
+            parsed
+                .get(&("minecraft:custom".to_owned(), "minecraft:jump".to_owned()))
+                .expect("jump")
+                .value,
+            42
+        );
+        assert_eq!(
+            parsed
+                .get(&("minecraft:mined".to_owned(), "minecraft:stone".to_owned()))
+                .expect("stone")
+                .value,
+            9
+        );
+    }
+
+    #[test]
     fn one_local_player_file_is_used_when_no_account_uuid_is_known() {
         let temp = tempdir().expect("tempdir");
         let stats_dir = temp.path().join("stats");
@@ -1277,9 +1670,140 @@ mod tests {
             r#"{"stats":{"minecraft:custom":{"minecraft:jump":7}}}"#,
         )
         .expect("stats file");
-        let (stats, basis) = load_world_stats(temp.path(), None);
+        let (stats, basis) =
+            load_world_stats(temp.path(), None, StatisticsBasis::SingleLocalPlayer);
         assert!(stats.is_some());
         assert_eq!(basis, StatisticsBasis::SingleLocalPlayer);
+    }
+
+    #[test]
+    fn legacy_players_stats_directory_is_supported() {
+        let temp = tempdir().expect("tempdir");
+        let stats_dir = temp.path().join("players/stats");
+        fs::create_dir_all(&stats_dir).expect("stats dir");
+        fs::write(
+            stats_dir.join("12345678-1234-1234-1234-1234567890ab.json"),
+            r#"{"stat.jump":7}"#,
+        )
+        .expect("stats file");
+
+        let (stats, basis) =
+            load_world_stats(temp.path(), None, StatisticsBasis::SingleLocalPlayer);
+
+        assert!(stats.is_some());
+        assert_eq!(basis, StatisticsBasis::SingleLocalPlayer);
+    }
+
+    #[test]
+    fn repeated_player_uuid_is_used_when_launcher_identity_is_unavailable() {
+        let temp = tempdir().expect("tempdir");
+        let saves = temp.path().join("saves");
+        let frequent_uuid = "12345678-1234-1234-1234-1234567890ab";
+        let other_uuid = "abcdefab-cdef-abcd-efab-cdefabcdefab";
+        for (world, uuids) in [
+            ("One", vec![frequent_uuid, other_uuid]),
+            ("Two", vec![frequent_uuid]),
+        ] {
+            let stats_dir = saves.join(world).join("stats");
+            fs::create_dir_all(&stats_dir).expect("stats dir");
+            for uuid in uuids {
+                fs::write(
+                    stats_dir.join(format!("{uuid}.json")),
+                    r#"{"stats":{"minecraft:custom":{"minecraft:jump":7}}}"#,
+                )
+                .expect("stats file");
+            }
+        }
+        let roots = vec![GameRoot {
+            path: temp.path().to_path_buf(),
+            launcher: "Official Launcher".to_owned(),
+            instance: "Minecraft".to_owned(),
+        }];
+
+        let counts = collect_stats_uuid_counts(&roots);
+        let (selected, basis) = select_primary_stats_uuid(&[], &counts);
+
+        assert_eq!(
+            selected.as_deref(),
+            normalize_uuid(frequent_uuid).as_deref()
+        );
+        assert_eq!(basis, StatisticsBasis::InferredLocalPlayer);
+    }
+
+    #[test]
+    fn prism_singular_skin_and_official_user_cache_are_recognized() {
+        let skin_data = fake_skin_data_url();
+        let bare_data = skin_data
+            .strip_prefix("data:image/png;base64,")
+            .expect("base64 data");
+        let prism = serde_json::json!({
+            "accounts": [{
+                "active": true,
+                "profile": {
+                    "name": "Builder",
+                    "id": "123456781234123412341234567890ab",
+                    "skin": {
+                        "url": "https://textures.minecraft.net/texture/abcdefabcdefabcdefabcdefabcdefab",
+                        "data": bare_data
+                    }
+                }
+            }]
+        });
+        let prism_identities = extract_identities(&prism, "Prism Launcher");
+        assert_eq!(prism_identities.len(), 1);
+        assert_eq!(prism_identities[0].skin_hashes.len(), 1);
+        assert_eq!(prism_identities[0].embedded_skins.len(), 1);
+
+        let user_cache = serde_json::json!([{
+            "name": "Builder",
+            "uuid": "12345678-1234-1234-1234-1234567890ab"
+        }]);
+        let cached = extract_identities(&user_cache, "Minecraft user cache");
+        assert_eq!(cached.len(), 1);
+        assert_eq!(cached[0].name, "Builder");
+
+        let official = serde_json::json!({
+            "activeAccountLocalId": "local-account",
+            "accounts": {
+                "local-account": {
+                    "minecraftProfile": {
+                        "name": "Builder",
+                        "id": "123456781234123412341234567890ab"
+                    },
+                    "avatar": skin_data
+                }
+            }
+        });
+        let official_identities = extract_identities(&official, "Official Launcher");
+        assert_eq!(official_identities.len(), 1);
+        assert!(official_identities[0].active);
+        assert!(official_identities[0].avatar_data_url.is_some());
+    }
+
+    #[test]
+    fn official_custom_skin_library_provides_full_skin_assets() {
+        let temp = tempdir().expect("tempdir");
+        let skin_data = fake_skin_data_url();
+        fs::write(
+            temp.path().join("launcher_custom_skins.json"),
+            serde_json::json!({
+                "customSkins": {
+                    "skin_1": {
+                        "skinImage": skin_data,
+                        "updated": "2026-08-13T10:00:00Z"
+                    }
+                }
+            })
+            .to_string(),
+        )
+        .expect("skin library");
+
+        let skins = collect_custom_skin_library(temp.path());
+
+        assert_eq!(skins.len(), 1);
+        assert_eq!(skins[0].width, 64);
+        assert_eq!(skins[0].height, 64);
+        assert_eq!(skins[0].source, "Official Launcher skin library");
     }
 
     #[test]

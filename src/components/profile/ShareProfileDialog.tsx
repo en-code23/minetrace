@@ -105,11 +105,15 @@ async function renderShareCard(profile: ProfileData, fields: Record<ShareField, 
   context.fillText("MINETRACE  /  PLAYER DOSSIER", 88, 92);
 
   let headingX = 88;
-  if (fields.player && profile.currentSkin) {
-    const image = await loadImage(profile.currentSkin.dataUrl);
+  if (fields.player && (profile.currentSkin || profile.avatar)) {
+    const image = await loadImage(profile.currentSkin?.dataUrl ?? profile.avatar!.dataUrl);
     context.imageSmoothingEnabled = false;
-    context.drawImage(image, 8, 8, 8, 8, 88, 128, 136, 136);
-    if (image.height >= 64) context.drawImage(image, 40, 8, 8, 8, 88, 128, 136, 136);
+    if (profile.currentSkin) {
+      context.drawImage(image, 8, 8, 8, 8, 88, 128, 136, 136);
+      if (image.height >= 64) context.drawImage(image, 40, 8, 8, 8, 88, 128, 136, 136);
+    } else {
+      context.drawImage(image, 88, 128, 136, 136);
+    }
     headingX = 256;
   }
   context.fillStyle = "#f1ead9";
