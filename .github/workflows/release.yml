@@ -183,14 +183,33 @@ jobs:
           const fs = require('node:fs');
           const [manifestPath, expectedVersion] = process.argv.slice(2);
           const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-          const platforms = Object.values(manifest.platforms ?? {});
-          if (manifest.version !== expectedVersion || platforms.length < 3) {
+          const platformEntries = Object.entries(manifest.platforms ?? {});
+          if (manifest.version !== expectedVersion || platformEntries.length < 3) {
             throw new Error('latest.json is missing the expected version or desktop platforms');
           }
-          for (const platform of platforms) {
+
+          const releaseRoot = `https://github.com/en-code23/minetrace/releases/download/v${expectedVersion}`;
+          for (const [platformName, platform] of platformEntries) {
             if (!platform.url || !platform.signature) {
               throw new Error('latest.json contains an unsigned or missing updater payload');
             }
+            let fileName;
+            if (platformName.startsWith('darwin-aarch64')) {
+              fileName = `MineTrace_${expectedVersion}_aarch64.app.tar.gz`;
+            } else if (platformName.startsWith('windows-x86_64')) {
+              fileName = platformName.endsWith('-msi')
+                ? `MineTrace_${expectedVersion}_x64_en-US.msi`
+                : `MineTrace_${expectedVersion}_x64-setup.exe`;
+            } else if (platformName.startsWith('windows-aarch64')) {
+              fileName = platformName.endsWith('-msi')
+                ? `MineTrace_${expectedVersion}_arm64_en-US.msi`
+                : `MineTrace_${expectedVersion}_arm64-setup.exe`;
+            } else {
+              throw new Error(`latest.json contains an unsupported platform: ${platformName}`);
+            }
+            platform.url = `${releaseRoot}/${fileName}`;
           }
+          fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
           NODE
+          gh release upload "$TAG" "$RUNNER_TEMP/minetrace-release/latest.json" --clobber
           gh release edit "$TAG" --draft=false --latest
