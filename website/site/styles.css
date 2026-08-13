@@ -215,12 +215,88 @@ body {
 }
 
 .panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   padding: 20px;
   background: var(--cave-1);
   border: 1px solid var(--border-standard);
   border-radius: var(--radius-large);
+  transition:
+    background-color var(--dur-hover) var(--ease),
+    border-color var(--dur-hover) var(--ease),
+    box-shadow var(--dur-hover) var(--ease);
+}
+
+.panel.is-recommended {
+  border-color: color-mix(in srgb, var(--moss) 72%, var(--border-standard));
+  background:
+    linear-gradient(color-mix(in srgb, var(--moss) 4%, transparent),
+                    color-mix(in srgb, var(--moss) 4%, transparent)),
+    var(--cave-1);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--moss) 22%, transparent),
+    0 14px 40px color-mix(in srgb, var(--moss) 8%, transparent);
+}
+
+.device-match {
+  position: absolute;
+  top: 0;
+  left: 18px;
+  transform: translateY(-50%);
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--moss) 62%, var(--border-standard));
+  border-radius: 999px;
+  background: var(--cave-raised);
+  color: var(--moss-bright);
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.045em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.unsupported-platform {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 22px;
+  background: var(--cave-1);
+  border: 1px solid var(--border-standard);
+  border-radius: var(--radius-large);
+}
+
+.unsupported-platform[hidden],
+.device-match[hidden],
+.download-grid[hidden] {
+  display: none;
+}
+
+.unsupported-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border: 1px solid color-mix(in srgb, var(--torch) 32%, var(--border-standard));
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--torch) 8%, var(--cave-2));
+  color: var(--torch);
+}
+
+.unsupported-platform h2 {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 580;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.unsupported-platform p {
+  margin: 0;
+  color: var(--quartz-tertiary);
+  font-size: 13px;
 }
 
 .panel-head {

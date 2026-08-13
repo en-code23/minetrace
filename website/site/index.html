@@ -21,6 +21,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;450;500;600&amp;display=swap">
 <link rel="stylesheet" href="styles.css">
+<script type="module" src="os-detection.js"></script>
 </head>
 <body>
 
@@ -91,9 +92,11 @@
     <span class="seg partial" style="height:25%"></span>
   </div>
 
-  <section id="downloads" class="download-grid" aria-label="Downloads">
+  <section id="downloads" aria-label="Downloads">
+    <div id="download-options" class="download-grid">
 
-    <article class="panel">
+    <article class="panel" data-download-platform="macos">
+      <span class="device-match" data-device-match hidden>Recommended for this device</span>
       <div class="panel-head">
         <span class="platform-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
@@ -120,7 +123,8 @@
       </div>
     </article>
 
-    <article class="panel">
+    <article class="panel" data-download-platform="windows">
+      <span class="device-match" data-device-match hidden>Recommended for this device</span>
       <div class="panel-head">
         <span class="platform-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
@@ -156,7 +160,19 @@
         </a>
       </div>
     </article>
+    </div>
 
+    <div id="unsupported-platform" class="unsupported-platform" role="status" aria-live="polite" hidden>
+      <span class="unsupported-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 8v4m0 4h.01M10.3 3.9 2.4 17.5a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>
+        </svg>
+      </span>
+      <div>
+        <h2>No download available</h2>
+        <p>There is no download for your operating system currently.</p>
+      </div>
+    </div>
   </section>
 
   <footer class="site-footer">
