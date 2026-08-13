@@ -17,9 +17,11 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
+import { getVersion } from "@tauri-apps/api/app";
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { clsx } from "clsx";
+import packageMetadata from "../../../package.json";
 import { detectPlatform, isTauriRuntime, shortcutModifier } from "../../lib/runtime";
 import { useUiStore } from "../../stores/ui-store";
 import { Button } from "../ui/Button";
@@ -56,6 +58,7 @@ export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [installedVersion, setInstalledVersion] = useState(packageMetadata.version);
   const mainRef = useRef<HTMLElement>(null);
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useUiStore((state) => state.toggleSidebar);
@@ -69,6 +72,21 @@ export function AppShell() {
     const frame = window.requestAnimationFrame(() => mainRef.current?.focus());
     return () => window.cancelAnimationFrame(frame);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!native) return;
+    let active = true;
+    void getVersion()
+      .then((version) => {
+        if (active) setInstalledVersion(version);
+      })
+      .catch(() => {
+        // The packaged frontend version remains a truthful fallback.
+      });
+    return () => {
+      active = false;
+    };
+  }, [native]);
 
   return (
     <div
@@ -189,6 +207,14 @@ export function AppShell() {
                 Scan now
               </Button>
             )}
+            <span
+              className="topbar__version"
+              aria-label={`MineTrace version ${installedVersion}`}
+              title={`MineTrace ${installedVersion}`}
+              data-tauri-drag-region
+            >
+              v{installedVersion}
+            </span>
           </div>
         </header>
 
